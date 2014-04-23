@@ -6,9 +6,9 @@ Fuzzy
 Fuzzy is a very fast spell checker and query suggester written in Golang. 
 
 Motivation:
-- Sajari uses very large queries (hundreds of words) but needs to respond sub-second to these queries where possible. Common spell check algorithms are quite resource hungry
-- The aim was to achieve spell checks in sub 100usec per word (10kHz single core) with at least 70% accuracy. 
-- Currently we can get sub 200usec per word and 68% accuracy for a Levenshtein distance of 2 chars (test set comes from Peter Norvig's article, see http://norvig.com/spell-correct.html). 
+- Sajari uses very large queries (hundreds of words) but needs to respond sub-second to these queries where possible. Common spell check algorithms are quite slow or resource intensive.
+- The aim was to achieve spell checks in sub 100usec per word (10kHz single core) with at least 70% accuracy, with multi-language support. 
+- Currently we can get sub 200usec per word and 68% accuracy for a Levenshtein distance of 2 chars (english test set comes from Peter Norvig's article, see http://norvig.com/spell-correct.html). 
 - A 500 word query can be spell checked in ~0.1 sec / cpu cores, which is good enough for us.
 
 Notes:
@@ -18,7 +18,9 @@ Notes:
 
 
 Usage:
-See the fuzzy_test.go file to train with the big.text file or use the single word and multiword training functions to integrate with your application.
+- Below is some example code showing how to use the package.
+- See the fuzzy_test.go file to train with the "big.text" file or use the single word and multiword training functions to integrate with your application.
+- We haven't tested with other langauges, but this should work fine. Please let us know how you go? `support@sajari.com`
 
 
 ```go
