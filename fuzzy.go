@@ -28,6 +28,7 @@ type Model struct {
 	chars 		int
 }
 
+// Create and initialise a new model
 func NewModel() *Model {
 	model := new(Model)
 	return model.Init()
@@ -67,6 +68,7 @@ func max(a, b int) int {
   return a
 }
 
+// Calculate the Levenshtein distance between two strings
 func Levenshtein(a, b string) int {
   n, m := len(a), len(b)
   if n > m {
@@ -104,6 +106,17 @@ func (model *Model) Train(terms []string) {
 	}
 }
 
+// Manually set the count of a word. Optionally trigger the 
+// creation of suggestion keys for the term. This function lets
+// you build a model from an existing dictionary with word popularity
+// counts without needing to run "TrainWord" repeatedly
+func (model *Model) SetCount(term string, count int, suggest bool) {
+	model.Data[term] = count
+	if suggest {
+		model.createSuggestKeys(term)
+	}
+}
+
 // Train the model word by word
 func (model *Model) TrainWord(term string) {
 	model.Data[term]++
@@ -113,21 +126,26 @@ func (model *Model) TrainWord(term string) {
 	}
 	// If threshold is triggered, store delete suggestion keys
 	if model.Data[term] == model.threshold {
-		edits := model.EditsMulti(term, model.depth)
-		for _, edit := range edits {
-			skip := false
-			for _, hit := range model.suggest[edit] {
-				if hit == term {
-					// Already know about this one
-					skip = true
-					continue
-				}
-			}
-			if !skip && len(edit) > 1 {
-				model.suggest[edit] = append(model.suggest[edit], term)
+		model.createSuggestKeys(term)
+	}
+}
+
+// For a given term, create the partially deleted lookup keys
+func (model *Model) createSuggestKeys(term string) {
+	edits := model.EditsMulti(term, model.depth)
+	for _, edit := range edits {
+		skip := false
+		for _, hit := range model.suggest[edit] {
+			if hit == term {
+				// Already know about this one
+				skip = true
+				continue
 			}
 		}
-	}
+		if !skip && len(edit) > 1 {
+			model.suggest[edit] = append(model.suggest[edit], term)
+		}
+	}	
 }
 
 // Edits at any depth for a given term. The depth of the model is used
@@ -189,7 +207,6 @@ func best(input string, potential map[string]*Potential) string {
 				if pot.score > bestcalc {
 					bestcalc = pot.score
 					// If the first letter is the same, that's a good sign. Bias these potentials
-					
 					if pot.term[0] == input[0] {
 						bestcalc += bestcalc * 100
 					}
@@ -208,7 +225,8 @@ func best(input string, potential map[string]*Potential) string {
 
 // Test an input, if we get it wrong, look at why it is wrong. This 
 // function returns a bool indicating if the guess was correct as well 
-// as the term it is suggesting
+// as the term it is suggesting. Typically this function would be used
+// for testing, not for production
 func (model *Model) CheckKnown(input string, correct string) bool {
 	suggestions := model.suggestPotential(input, true)
 	best := best(input, suggestions)

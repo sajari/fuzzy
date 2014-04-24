@@ -66,6 +66,17 @@ func TestSuggestions(t *testing.T) {
 	}
 }
 
+func TestManualTermAddition(t *testing.T) {
+	model := NewModel()
+	model.SetThreshold(4)
+
+	model.SetCount("elephant", 10, true)
+
+	if model.SpellCheck("elphant") != "elephant" {
+		t.Errorf("Spell check: manual term addition didn't work")
+	}
+}
+
 
 // Accuracy test sets come from Peter Norvig's set
 // The big.txt file is also from Peter Norvig's set. This helps to define a decent
@@ -272,8 +283,7 @@ func TestAccuracy(t *testing.T) {
 	for target, testwords := range tests1 { 
 		testwordarr := strings.Split(testwords, " ")
 		for _, testword := range testwordarr {
-			ok := model.CheckKnown(testword, target)
-			if ok {
+			if model.SpellCheck(testword) == target {
 				correct++
 			} else {
 				incorrect++
@@ -294,7 +304,7 @@ func TestAccuracy(t *testing.T) {
 	maxtime := time.Duration(count) * 200 * time.Microsecond
 
 	if t3.Sub(t2) > maxtime {
-		t.Errorf("Unacceptable completion time for set test1 (%v). e.g. 270 corrections took greater than %v.", t3.Sub(t2), maxtime)
+		t.Errorf("Unacceptable completion time for set test1 (%v). e.g. %v corrections took greater than %v.", t3.Sub(t2), count, maxtime)
 	}
 
 
@@ -303,8 +313,7 @@ func TestAccuracy(t *testing.T) {
 	for target, testwords := range tests2 { 
 		testwordarr := strings.Split(testwords, " ")
 		for _, testword := range testwordarr {
-			ok := model.CheckKnown(testword, target)
-			if ok {
+			if model.SpellCheck(testword) == target {
 				correct++
 			} else {
 				incorrect++
@@ -325,7 +334,7 @@ func TestAccuracy(t *testing.T) {
 	maxtime = time.Duration(count) * 200 * time.Microsecond
 
 	if t3.Sub(t2) > maxtime {
-		t.Errorf("Unacceptable completion time for set test2 (%v). e.g. 270 corrections took greater than %v", t3.Sub(t2), maxtime)
+		t.Errorf("Unacceptable completion time for set test2 (%v). e.g. %v corrections took greater than %v", t3.Sub(t2), count, maxtime)
 	}
 
 }
