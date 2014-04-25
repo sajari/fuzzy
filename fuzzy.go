@@ -24,10 +24,10 @@ type Potential struct {
 
 type Model struct {
 	Data 		map[string]int 			`json:"data"`
-	maxcount 	int 					`json:"maxcount"`
-	suggest 	map[string][]string 	`json:"suggest"`
-	depth		int 					`json:"depth"`
-	threshold 	int 					`json:"threshold"`
+	Maxcount 	int 					`json:"maxcount"`
+	Suggest 	map[string][]string 	`json:"suggest"`
+	Depth		int 					`json:"depth"`
+	Threshold 	int 					`json:"threshold"`
 }
 
 // Create and initialise a new model
@@ -38,9 +38,9 @@ func NewModel() *Model {
 
 func (model *Model) Init() *Model {
 	model.Data = make(map[string]int)
-	model.suggest = make(map[string][]string)
-	model.depth = 2
-	model.threshold = 4 // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
+	model.Suggest = make(map[string][]string)
+	model.Depth = 2
+	model.Threshold = 4 // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
 	return model
 }
 
@@ -83,13 +83,13 @@ func Load(filename string) (*Model, error) {
 // Change the default depth value of the model. This sets how many
 // character differences are indexed. The default is 2.
 func (model *Model) SetDepth(val int) {
-	model.depth = val
+	model.Depth = val
 }
 
 // Change the default threshold of the model. This is how many times
 // a term must be seen before suggestions are created for it
 func (model *Model) SetThreshold(val int) {
-	model.threshold = val
+	model.Threshold = val
 }
 
 func min(a, b int) int {
@@ -159,21 +159,21 @@ func (model *Model) SetCount(term string, count int, suggest bool) {
 func (model *Model) TrainWord(term string) {
 	model.Data[term]++
 	// Set the max
-	if model.Data[term] > model.maxcount {
-		model.maxcount = model.Data[term]
+	if model.Data[term] > model.Maxcount {
+		model.Maxcount = model.Data[term]
 	}
 	// If threshold is triggered, store delete suggestion keys
-	if model.Data[term] == model.threshold {
+	if model.Data[term] == model.Threshold {
 		model.createSuggestKeys(term)
 	}
 }
 
 // For a given term, create the partially deleted lookup keys
 func (model *Model) createSuggestKeys(term string) {
-	edits := model.EditsMulti(term, model.depth)
+	edits := model.EditsMulti(term, model.Depth)
 	for _, edit := range edits {
 		skip := false
-		for _, hit := range model.suggest[edit] {
+		for _, hit := range model.Suggest[edit] {
 			if hit == term {
 				// Already know about this one
 				skip = true
@@ -181,7 +181,7 @@ func (model *Model) createSuggestKeys(term string) {
 			}
 		}
 		if !skip && len(edit) > 1 {
-			model.suggest[edit] = append(model.suggest[edit], term)
+			model.Suggest[edit] = append(model.Suggest[edit], term)
 		}
 	}	
 }
@@ -304,7 +304,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	}
 
 	// 1 - See if the input matches a "suggest" key
-	if sugg, ok := model.suggest[input]; ok {
+	if sugg, ok := model.Suggest[input]; ok {
 		for _, pot := range sugg {
 			if _, ok := suggestions[pot]; !ok {
 				suggestions[pot] = &Potential{term : pot, score : model.score(pot), leven : Levenshtein(input, pot), method : 1}
@@ -318,7 +318,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 
 	// 2 - See if edit1 matches input
 	max := 0
-	edits := model.EditsMulti(input, model.depth)
+	edits := model.EditsMulti(input, model.Depth)
 	for _, edit := range edits {
 		score := model.score(edit)
 		if score > 0 && len(edit) > 2 { 
@@ -341,11 +341,11 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	// more thoroughly, e.g. levals=[valves] in a raw sense, which
 	// is incorrect
 	for _, edit := range edits {
-		if sugg, ok := model.suggest[edit]; ok {
+		if sugg, ok := model.Suggest[edit]; ok {
 			// Is this a real transpose or replace?
 			for _, pot := range sugg {
 				lev := Levenshtein(input, pot)
-				if lev <= model.depth + 1 { // The +1 doesn't seem to impact speed, but has greater coverage when the depth is not sufficient to make suggestions
+				if lev <= model.Depth + 1 { // The +1 doesn't seem to impact speed, but has greater coverage when the depth is not sufficient to make suggestions
 					if _, ok := suggestions[pot]; !ok {
 						suggestions[pot] = &Potential{term : pot, score : model.score(pot), leven : lev, method : 3}
 					}

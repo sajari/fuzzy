@@ -274,12 +274,8 @@ func TestAccuracy(t *testing.T) {
 	"together": "togehter", "profits": "proffits"}
 
 	model := NewModel()
-//	model.SetDepth(1)
 	model.Train(SampleEnglish())
-/*
-	model.Save("english.spelling")
-	model, _ := Load("english.spelling")
-*/	
+	
 	// Look at test sets
 	count, correct, incorrect := 0, 0, 0
 	t2 := time.Now()
