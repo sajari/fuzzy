@@ -92,49 +92,38 @@ func (model *Model) SetThreshold(val int) {
 	model.Threshold = val
 }
 
-func min(a, b int) int {
-  if a < b {
-    return a
-  }
-  return b
-}
-
-func max(a, b int) int {
-  if a < b {
-    return b
-  }
-  return a
-}
-
 // Calculate the Levenshtein distance between two strings
-func Levenshtein(a, b string) int {
-  n, m := len(a), len(b)
-  if n > m {
-    a, b = b, a
-    n, m = m, n
-  }
+func Levenshtein(a, b *string) int {
+    la := len(*a)
+    lb := len(*b)
+    d  := make([]int, la + 1)
+    var lastdiag, olddiag, temp int
 
-  current  := make([]int, m+1)
-  previous := make([]int, m+1)
-  var i, j, add, delete, change int
-
-  for i = 1; i <= m; i++ {
-    copy(previous, current)
-    for j = 0; j <= m; j++ { current[j] = 0 }
-    current[0] = i
-    for j = 1; j <= n; j++ {
-      if a[j-1] == b[i-1] {
-        current[j] = previous[j-1]
-      } else {
-        add    = previous[j] + 1
-        delete = current[j-1] + 1
-        change = previous[j-1] + 1
-        current[j] = min(min(add, delete), change)
-      }
+    for i := 1; i <= la; i++ {
+        d[i] = i
     }
-  }
-
-  return current[n]
+    for i := 1; i <= lb; i++ {
+        d[0] = i
+        lastdiag = i - 1
+        for j := 1; j <= la; j++ {
+            olddiag = d[j]
+            min := d[j] + 1
+            if (d[j - 1] + 1) < min {
+                min = d[j - 1] + 1
+            }
+            if ( (*a)[j - 1] == (*b)[i - 1] ) {
+                temp = 0
+            } else {
+                temp = 1
+            }
+            if (lastdiag + temp) < min {
+                min = lastdiag + temp
+            }
+            d[j] = min
+            lastdiag = olddiag
+        }
+    }
+    return d[la]
 }
 
 // Add an array of words to train the model in bulk
@@ -307,7 +296,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	if sugg, ok := model.Suggest[input]; ok {
 		for _, pot := range sugg {
 			if _, ok := suggestions[pot]; !ok {
-				suggestions[pot] = &Potential{term : pot, score : model.score(pot), leven : Levenshtein(input, pot), method : 1}
+				suggestions[pot] = &Potential{term : pot, score : model.score(pot), leven : Levenshtein(&input, &pot), method : 1}
 			}
 		}
 
@@ -323,7 +312,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 		score := model.score(edit)
 		if score > 0 && len(edit) > 2 { 
 			if _, ok := suggestions[edit]; !ok {
-				suggestions[edit] = &Potential{term : edit, score : score, leven : Levenshtein(input, edit), method : 2}
+				suggestions[edit] = &Potential{term : edit, score : score, leven : Levenshtein(&input, &edit), method : 2}
 			}
 			if (score > max) {
 				max = score
@@ -344,7 +333,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 		if sugg, ok := model.Suggest[edit]; ok {
 			// Is this a real transpose or replace?
 			for _, pot := range sugg {
-				lev := Levenshtein(input, pot)
+				lev := Levenshtein(&input, &pot)
 				if lev <= model.Depth + 1 { // The +1 doesn't seem to impact speed, but has greater coverage when the depth is not sufficient to make suggestions
 					if _, ok := suggestions[pot]; !ok {
 						suggestions[pot] = &Potential{term : pot, score : model.score(pot), leven : lev, method : 3}
