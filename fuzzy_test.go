@@ -274,7 +274,7 @@ func TestAccuracy(t *testing.T) {
 	"together": "togehter", "profits": "proffits"}
 
 	model := NewModel()
-	model.SetDepth(1)
+//	model.SetDepth(1)
 	model.Train(SampleEnglish())
 /*
 	model.Save("english.spelling")
