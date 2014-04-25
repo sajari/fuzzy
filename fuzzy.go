@@ -191,7 +191,7 @@ func (model *Model) EditsMulti(term string, depth int) []string {
 	edits := Edits1(term)
 	for {
 		depth--
-		if depth == 0 {
+		if depth <= 0 {
 			break
 		}
 		for _, edit := range edits {
