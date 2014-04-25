@@ -5,6 +5,9 @@ import(
 	"os"
 	"bufio"
 	"strings"
+	"log"
+	"encoding/json"
+	"regexp"
 )
 
 type Pair struct {
@@ -20,12 +23,11 @@ type Potential struct {
 }
 
 type Model struct {
-	Data 		map[string]int
-	maxcount 	int
-	suggest 	map[string][]string
-	depth		int
-	threshold 	int
-	chars 		int
+	Data 		map[string]int 			`json:"data"`
+	maxcount 	int 					`json:"maxcount"`
+	suggest 	map[string][]string 	`json:"suggest"`
+	depth		int 					`json:"depth"`
+	threshold 	int 					`json:"threshold"`
 }
 
 // Create and initialise a new model
@@ -41,6 +43,42 @@ func (model *Model) Init() *Model {
 	model.threshold = 4 // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
 	return model
 }
+
+// Save a spelling model to disk
+func (model *Model) Save(filename string) error {
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Println("Fuzzy model:", err)
+		return err
+	}
+	b := bufio.NewWriter(f)
+	e := json.NewEncoder(b)
+	defer f.Close()
+	defer b.Flush()
+	err = e.Encode(model)
+	if err != nil {
+		log.Println("Fuzzy model:", err)
+	}
+	return err
+}
+
+// Load a saved model from disk
+func Load(filename string) (*Model, error) {
+	model := new(Model)
+	f, err := os.Open(filename)
+	if err != nil {
+		return model, err
+	}
+	defer f.Close()
+	//b := bufio.NewReader(f)
+	d := json.NewDecoder(f)
+	err = d.Decode(model)
+	if err != nil {
+		return model, err
+	}
+	return model, nil
+}
+
 
 // Change the default depth value of the model. This sets how many
 // character differences are indexed. The default is 2.
@@ -342,13 +380,18 @@ func SampleEnglish() []string {
     }
     reader := bufio.NewReader(file)
     scanner := bufio.NewScanner(reader)
-	scanner.Split(bufio.ScanWords)
+	scanner.Split(bufio.ScanLines)
 	// Count the words.
 	count := 0
 	for scanner.Scan() {
-		word := strings.Trim(scanner.Text(), "=+'|_,-!;:\"?.")
-		out = append(out, strings.ToLower(word))
-		count++
+		exp, _ := regexp.Compile("[a-zA-Z]+")
+		words := exp.FindAll([]byte(scanner.Text()), -1)
+		for _, word := range words {
+			if len(word) > 1 {
+				out = append(out, strings.ToLower(string(word)))
+				count++
+			}
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, "reading input:", err)

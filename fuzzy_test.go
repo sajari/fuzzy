@@ -77,7 +77,6 @@ func TestManualTermAddition(t *testing.T) {
 	}
 }
 
-
 // Accuracy test sets come from Peter Norvig's set
 // The big.txt file is also from Peter Norvig's set. This helps to define a decent
 // dictionary, although it is still missing some of the common words in the test sets
@@ -275,8 +274,12 @@ func TestAccuracy(t *testing.T) {
 	"together": "togehter", "profits": "proffits"}
 
 	model := NewModel()
+	model.SetDepth(1)
 	model.Train(SampleEnglish())
-
+/*
+	model.Save("english.spelling")
+	model, _ := Load("english.spelling")
+*/	
 	// Look at test sets
 	count, correct, incorrect := 0, 0, 0
 	t2 := time.Now()
