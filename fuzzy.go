@@ -8,6 +8,7 @@ import(
 	"log"
 	"encoding/json"
 	"regexp"
+	"sync"
 )
 
 type Pair struct {
@@ -28,6 +29,7 @@ type Model struct {
 	Suggest 	map[string][]string 	`json:"suggest"`
 	Depth		int 					`json:"depth"`
 	Threshold 	int 					`json:"threshold"`
+	sync.RWMutex
 }
 
 // Create and initialise a new model
@@ -40,12 +42,14 @@ func (model *Model) Init() *Model {
 	model.Data = make(map[string]int)
 	model.Suggest = make(map[string][]string)
 	model.Depth = 2
-	model.Threshold = 4 // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
+	model.Threshold = 3 // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
 	return model
 }
 
 // Save a spelling model to disk
 func (model *Model) Save(filename string) error {
+	model.RLock()
+	defer model.RUnlock()
 	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		log.Println("Fuzzy model:", err)
@@ -83,13 +87,17 @@ func Load(filename string) (*Model, error) {
 // Change the default depth value of the model. This sets how many
 // character differences are indexed. The default is 2.
 func (model *Model) SetDepth(val int) {
+	model.Lock()
 	model.Depth = val
+	model.Unlock()
 }
 
 // Change the default threshold of the model. This is how many times
 // a term must be seen before suggestions are created for it
 func (model *Model) SetThreshold(val int) {
+	model.Lock()
 	model.Threshold = val
+	model.Unlock()
 }
 
 // Calculate the Levenshtein distance between two strings
@@ -138,14 +146,17 @@ func (model *Model) Train(terms []string) {
 // you build a model from an existing dictionary with word popularity
 // counts without needing to run "TrainWord" repeatedly
 func (model *Model) SetCount(term string, count int, suggest bool) {
+	model.Lock()
 	model.Data[term] = count
 	if suggest {
 		model.createSuggestKeys(term)
 	}
+	model.Unlock()
 }
 
 // Train the model word by word
 func (model *Model) TrainWord(term string) {
+	model.Lock()
 	model.Data[term]++
 	// Set the max
 	if model.Data[term] > model.Maxcount {
@@ -155,6 +166,7 @@ func (model *Model) TrainWord(term string) {
 	if model.Data[term] == model.Threshold {
 		model.createSuggestKeys(term)
 	}
+	model.Unlock()
 }
 
 // For a given term, create the partially deleted lookup keys
@@ -255,6 +267,8 @@ func best(input string, potential map[string]*Potential) string {
 // as the term it is suggesting. Typically this function would be used
 // for testing, not for production
 func (model *Model) CheckKnown(input string, correct string) bool {
+	model.RLock()
+	defer model.RUnlock()
 	suggestions := model.suggestPotential(input, true)
 	best := best(input, suggestions)
 	if best == correct {
@@ -263,6 +277,7 @@ func (model *Model) CheckKnown(input string, correct string) bool {
 		return true
 	}
 	if pot, ok := suggestions[correct]; !ok {
+		
 		if model.score(correct) > 0 {
 			fmt.Printf("\"%v\" - %v (%v) not in the suggestions. (%v) best option.\n", input, correct, model.score(correct), best)
 			for _, sugg := range suggestions {
@@ -285,7 +300,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	suggestions := make(map[string]*Potential, 20)
 
 	// 0 - If this is a dictionary term we're all good, no need to go further
-	if model.score(input) > 5 {
+	if model.score(input) > model.Threshold {
 		suggestions[input] = &Potential{term : input, score : model.score(input), leven : 0, method : 0}
 		if !exhaustive {
 			return suggestions
@@ -346,7 +361,9 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 }
 
 func (model *Model) Suggestions(input string, exhaustive bool) []string {
+	model.RLock()
 	suggestions := model.suggestPotential(input, exhaustive)
+	model.RUnlock()
 	output := make([]string, 10)
 	for _, suggestion := range suggestions {
 		output = append(output, suggestion.term)
@@ -356,7 +373,9 @@ func (model *Model) Suggestions(input string, exhaustive bool) []string {
 
 // Return the most likely correction for the input term
 func (model *Model) SpellCheck(input string) string {
+	model.RLock()
 	suggestions := model.suggestPotential(input, false)
+	model.RUnlock()
 	return best(input, suggestions)
 }
 
@@ -388,9 +407,3 @@ func SampleEnglish() []string {
 
 	return out
 }
-
-
-
-
-
-

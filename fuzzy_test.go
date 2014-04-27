@@ -5,6 +5,8 @@ import (
 	"time"
 	"strings"
 	"fmt"
+	"runtime"
+	"sync"
 )
 
 func TestSpelling(t *testing.T) {
@@ -75,6 +77,42 @@ func TestManualTermAddition(t *testing.T) {
 	if model.SpellCheck("elphant") != "elephant" {
 		t.Errorf("Spell check: manual term addition didn't work")
 	}
+}
+
+// Not exhaustive, but shows training and spell checks can run concurrently
+func TestConcurrency(t *testing.T) {
+	cpu := runtime.NumCPU()
+	runtime.GOMAXPROCS(cpu)
+	model := NewModel()
+
+	english := SampleEnglish()
+	piece := len(english) / cpu
+
+	var wg sync.WaitGroup
+	// Train concurrently
+	for i := 0; i < cpu; i++ {
+		wg.Add(1)
+		go func(i int) {
+			begin := i * piece
+			end := (i + 1) * piece - 1 
+			model.Train(english[begin:end])
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+
+	// Test concurrently
+	words := []string{"bob", "your", "uncle", "dynmite", "delidate", "bgigest", "bigr", "biger", "arnty", "you're"}
+	for i := 0; i < cpu; i++ {
+		wg.Add(1)
+		go func() {
+			for _, word := range words {
+				model.SpellCheck(word)
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 // Accuracy test sets come from Peter Norvig's set
@@ -277,6 +315,7 @@ func TestAccuracy(t *testing.T) {
 	model.Train(SampleEnglish())
 	
 	// Look at test sets
+	// SET 1
 	count, correct, incorrect := 0, 0, 0
 	t2 := time.Now()
 	for target, testwords := range tests1 { 
@@ -306,7 +345,7 @@ func TestAccuracy(t *testing.T) {
 		t.Errorf("Unacceptable completion time for set test1 (%v). e.g. %v corrections took greater than %v.", t3.Sub(t2), count, maxtime)
 	}
 
-
+	// SET 2
 	count, correct, incorrect = 0, 0, 0
 	t2 = time.Now()
 	for target, testwords := range tests2 { 
