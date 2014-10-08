@@ -17,10 +17,10 @@ type Pair struct {
 }
 
 type Potential struct {
-	term   string
-	score  int
-	leven  int
-	method int // 0 - is word, 1 - suggest maps to input, 2 - input delete maps to dictionary, 3 - input delete maps to suggest
+	Term   string
+	Score  int
+	Leven  int
+	Method int // 0 - is word, 1 - suggest maps to input, 2 - input delete maps to dictionary, 3 - input delete maps to suggest
 }
 
 type Model struct {
@@ -239,17 +239,17 @@ func best(input string, potential map[string]*Potential) string {
 	bestcalc := 0
 	for i := 0; i < 4; i++ {
 		for _, pot := range potential {
-			if pot.leven == 0 {
-				return pot.term
-			} else if pot.leven == i {
-				if pot.score > bestcalc {
-					bestcalc = pot.score
+			if pot.Leven == 0 {
+				return pot.Term
+			} else if pot.Leven == i {
+				if pot.Score > bestcalc {
+					bestcalc = pot.Score
 					// If the first letter is the same, that's a good sign. Bias these potentials
-					if pot.term[0] == input[0] {
+					if pot.Term[0] == input[0] {
 						bestcalc += bestcalc * 100
 					}
 
-					best = pot.term
+					best = pot.Term
 				}
 			}
 		}
@@ -299,7 +299,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 
 	// 0 - If this is a dictionary term we're all good, no need to go further
 	if model.score(input) > model.Threshold {
-		suggestions[input] = &Potential{term: input, score: model.score(input), leven: 0, method: 0}
+		suggestions[input] = &Potential{Term: input, Score: model.score(input), Leven: 0, Method: 0}
 		if !exhaustive {
 			return suggestions
 		}
@@ -309,7 +309,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	if sugg, ok := model.Suggest[input]; ok {
 		for _, pot := range sugg {
 			if _, ok := suggestions[pot]; !ok {
-				suggestions[pot] = &Potential{term: pot, score: model.score(pot), leven: Levenshtein(&input, &pot), method: 1}
+				suggestions[pot] = &Potential{Term: pot, Score: model.score(pot), Leven: Levenshtein(&input, &pot), Method: 1}
 			}
 		}
 
@@ -325,7 +325,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 		score := model.score(edit)
 		if score > 0 && len(edit) > 2 {
 			if _, ok := suggestions[edit]; !ok {
-				suggestions[edit] = &Potential{term: edit, score: score, leven: Levenshtein(&input, &edit), method: 2}
+				suggestions[edit] = &Potential{Term: edit, Score: score, Leven: Levenshtein(&input, &edit), Method: 2}
 			}
 			if score > max {
 				max = score
@@ -349,7 +349,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 				lev := Levenshtein(&input, &pot)
 				if lev <= model.Depth+1 { // The +1 doesn't seem to impact speed, but has greater coverage when the depth is not sufficient to make suggestions
 					if _, ok := suggestions[pot]; !ok {
-						suggestions[pot] = &Potential{term: pot, score: model.score(pot), leven: lev, method: 3}
+						suggestions[pot] = &Potential{Term: pot, Score: model.score(pot), Leven: lev, Method: 3}
 					}
 				}
 			}
@@ -358,13 +358,22 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	return suggestions
 }
 
+// Return the raw potential terms so they can be ranked externally
+// to this package
+func (model *Model) Potentials(input string, exhaustive bool) map[string]*Potential {
+	model.RLock()
+	defer model.RUnlock()
+	return model.suggestPotential(input, exhaustive)
+}
+
+// For a given input string, suggests potential replacements
 func (model *Model) Suggestions(input string, exhaustive bool) []string {
 	model.RLock()
 	suggestions := model.suggestPotential(input, exhaustive)
 	model.RUnlock()
 	output := make([]string, 10)
 	for _, suggestion := range suggestions {
-		output = append(output, suggestion.term)
+		output = append(output, suggestion.Term)
 	}
 	return output
 }
