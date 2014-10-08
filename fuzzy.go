@@ -50,7 +50,7 @@ func (model *Model) Init() *Model {
 func (model *Model) Save(filename string) error {
 	model.RLock()
 	defer model.RUnlock()
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.Create(filename)
 	if err != nil {
 		log.Println("Fuzzy model:", err)
 		return err
