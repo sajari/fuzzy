@@ -66,6 +66,21 @@ func (model *Model) Save(filename string) error {
 	return err
 }
 
+// Save a spelling model to disk, but discard all
+// entries less than the threshold number of occurences
+// Much smaller and all that is used when generated
+// as a once off, but not useful for incremental usage
+func (model *Model) SaveLight(filename string) error {
+	model.Lock()
+	for term, count := range model.Data {
+		if count < model.Threshold {
+			delete(model.Data, term)
+		}
+	}
+	model.Unlock()
+	return model.Save(filename)
+}
+
 // Load a saved model from disk
 func Load(filename string) (*Model, error) {
 	model := new(Model)
