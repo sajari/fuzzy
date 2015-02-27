@@ -3,7 +3,9 @@ package fuzzy
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"index/suffixarray"
 	"log"
 	"os"
 	"regexp"
@@ -24,11 +26,15 @@ type Potential struct {
 }
 
 type Model struct {
-	Data      map[string]int      `json:"data"`
-	Maxcount  int                 `json:"maxcount"`
-	Suggest   map[string][]string `json:"suggest"`
-	Depth     int                 `json:"depth"`
-	Threshold int                 `json:"threshold"`
+	Data            map[string]int      `json:"data"`
+	Maxcount        int                 `json:"maxcount"`
+	Suggest         map[string][]string `json:"suggest"`
+	Depth           int                 `json:"depth"`
+	Threshold       int                 `json:"threshold"`
+	UseAutocomplete bool                `json:"autocomplete"`
+	SuffDivergence  int                 `json:"-"`
+	SuffixArr       *suffixarray.Index  `json:"-"`
+	SuffixArrConcat string              `json:"-"`
 	sync.RWMutex
 }
 
@@ -42,7 +48,8 @@ func (model *Model) Init() *Model {
 	model.Data = make(map[string]int)
 	model.Suggest = make(map[string][]string)
 	model.Depth = 2
-	model.Threshold = 3 // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
+	model.Threshold = 3          // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
+	model.UseAutocomplete = true // Default is to include Autocomplete
 	return model
 }
 
@@ -95,6 +102,7 @@ func Load(filename string) (*Model, error) {
 	if err != nil {
 		return model, err
 	}
+	model.updateSuffixArr()
 	return model, nil
 }
 
@@ -111,6 +119,13 @@ func (model *Model) SetDepth(val int) {
 func (model *Model) SetThreshold(val int) {
 	model.Lock()
 	model.Threshold = val
+	model.Unlock()
+}
+
+// Optionally disabled suffixarray based autocomplete support
+func (model *Model) SetUseAutocomplete(val bool) {
+	model.Lock()
+	UseAutocomplete = val
 	model.Unlock()
 }
 
@@ -153,6 +168,7 @@ func (model *Model) Train(terms []string) {
 	for _, term := range terms {
 		model.TrainWord(term)
 	}
+	model.updateSuffixArr()
 }
 
 // Manually set the count of a word. Optionally trigger the
@@ -175,6 +191,7 @@ func (model *Model) TrainWord(term string) {
 	// Set the max
 	if model.Data[term] > model.Maxcount {
 		model.Maxcount = model.Data[term]
+		model.SuffDivergence++
 	}
 	// If threshold is triggered, store delete suggestion keys
 	if model.Data[term] == model.Threshold {
@@ -428,4 +445,41 @@ func SampleEnglish() []string {
 	}
 
 	return out
+}
+
+// Takes the known dictionary listing and creates a suffix array
+// model for these terms. If a model already existed, it is discarded
+func (model *Model) updateSuffixArr() {
+	if !model.UseAutocomplete {
+		return
+	}
+	model.RLock()
+	termArr := make([]string, 0, 1000)
+	for term, count := range model.Data {
+		if count > model.Threshold {
+			termArr = append(termArr, term)
+		}
+	}
+	model.SuffixArrConcat = "\x00" + strings.Join(termArr, "\x00") + "\x00"
+	model.SuffixArr = suffixarray.New([]byte(model.SuffixArrConcat))
+	model.SuffDivergence = 0
+	model.RUnlock()
+}
+
+// For a given string, autocomplete using the suffix array model
+func (model *Model) Autocomplete(input string) ([]string, error) {
+	if !model.UseAutocomplete {
+		return []string{}, errors.New("Autocomplete is disabled")
+	}
+	express := "\x00" + input + "[^\x00]*"
+	match, err := regexp.Compile(express)
+	if err != nil {
+		return []string{}, err
+	}
+	matches := model.SuffixArr.FindAllIndex(match, -1)
+	output := make([]string, 0, 5)
+	for _, m := range matches {
+		output = append(output, strings.Trim(model.SuffixArrConcat[m[0]:m[1]], "\x00"))
+	}
+	return output, nil
 }

@@ -287,3 +287,21 @@ func TestAccuracy(t *testing.T) {
 	}
 
 }
+
+// Quick test to make sure we're picking up the right stuff
+func TestAutocomplete(t *testing.T) {
+	model := NewModel()
+	model.Train(SampleEnglish())
+	out, err := model.Autocomplete("accoun")
+	expected := map[string]bool{
+		"account":    true,
+		"accountant": true,
+		"accounts":   true,
+		"accounted":  true,
+	}
+	for _, m := range out {
+		if val, ok := expected[m]; !ok {
+			t.Errorf("Expected to find %v (%v), but didn't", m, val)
+		}
+	}
+}
