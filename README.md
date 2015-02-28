@@ -74,5 +74,9 @@ func main() {
 	fmt.Println("	\"bo\". Did you mean?: ", model.Suggestions("bo", false))
 	fmt.Println("	\"dyn\". Did you mean?: ", model.Suggestions("dyn", false))
 
+	// Autocomplete suggestions
+	suggested, _ := model.Autocomplete("bi")
+	fmt.Printf("	\"bi\". Suggestions: %v", suggested)
+
 }
 ```
