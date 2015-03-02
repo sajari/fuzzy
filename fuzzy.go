@@ -125,7 +125,7 @@ func (model *Model) SetThreshold(val int) {
 // Optionally disabled suffixarray based autocomplete support
 func (model *Model) SetUseAutocomplete(val bool) {
 	model.Lock()
-	UseAutocomplete = val
+	model.UseAutocomplete = val
 	model.Unlock()
 }
 

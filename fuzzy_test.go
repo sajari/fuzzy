@@ -293,6 +293,9 @@ func TestAutocomplete(t *testing.T) {
 	model := NewModel()
 	model.Train(SampleEnglish())
 	out, err := model.Autocomplete("accoun")
+	if err != nil {
+		t.Errorf("Auocomplete() returned and error: ", err)
+	}
 	expected := map[string]bool{
 		"account":    true,
 		"accountant": true,
