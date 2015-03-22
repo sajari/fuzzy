@@ -125,8 +125,12 @@ func (model *Model) SetThreshold(val int) {
 // Optionally disabled suffixarray based autocomplete support
 func (model *Model) SetUseAutocomplete(val bool) {
 	model.Lock()
-	model.UseAutocomplete = val
+	old := model.UseAutocomplete
 	model.Unlock()
+	model.UseAutocomplete = val
+	if !old && val {
+		model.updateSuffixArr()
+	}
 }
 
 // Calculate the Levenshtein distance between two strings
