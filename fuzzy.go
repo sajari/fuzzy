@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -36,6 +37,25 @@ type Model struct {
 	SuffixArr       *suffixarray.Index  `json:"-"`
 	SuffixArrConcat string              `json:"-"`
 	sync.RWMutex
+}
+
+// For sorting autocomplete suggestions
+// to bias the most popular first
+type Autos struct {
+	Results []string
+	Model   *Model
+}
+
+func (a Autos) Len() int      { return len(a.Results) }
+func (a Autos) Swap(i, j int) { a.Results[i], a.Results[j] = a.Results[j], a.Results[i] }
+
+func (a Autos) Less(i, j int) bool {
+	icount := a.Model.Data[a.Results[i]]
+	jcount := a.Model.Data[a.Results[j]]
+	if icount == jcount {
+		return a.Results[i] > a.Results[j]
+	}
+	return icount > jcount
 }
 
 // Create and initialise a new model
@@ -481,9 +501,16 @@ func (model *Model) Autocomplete(input string) ([]string, error) {
 		return []string{}, err
 	}
 	matches := model.SuffixArr.FindAllIndex(match, -1)
-	output := make([]string, 0, 5)
+	a := &Autos{Results: make([]string, 0, len(matches)), Model: model}
 	for _, m := range matches {
-		output = append(output, strings.Trim(model.SuffixArrConcat[m[0]:m[1]], "\x00"))
+		str := strings.Trim(model.SuffixArrConcat[m[0]:m[1]], "\x00")
+		if count, ok := model.Data[str]; ok && count > model.Threshold && count < model.Maxcount/50 {
+			a.Results = append(a.Results, str)
+		}
 	}
-	return output, nil
+	sort.Sort(a)
+	if len(a.Results) >= 10 {
+		return a.Results[:10], nil
+	}
+	return a.Results, nil
 }
