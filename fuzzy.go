@@ -427,7 +427,7 @@ func (model *Model) Suggestions(input string, exhaustive bool) []string {
 	model.RLock()
 	suggestions := model.suggestPotential(input, exhaustive)
 	model.RUnlock()
-	output := make([]string, 10)
+	output := make([]string, 0, 10)
 	for _, suggestion := range suggestions {
 		output = append(output, suggestion.Term)
 	}
