@@ -15,8 +15,11 @@ import (
 )
 
 const (
-	CORPUS = 0
-	QUERY  = 1
+	CORPUS               = 0
+	QUERY                = 1
+	SPELL_DEPTH_DEFAULT  = 2
+	SPELL_THRESH_DEFAULT = 5
+	SUFF_DIVERGE_DEFAULT = 100
 )
 
 type Pair struct {
@@ -78,10 +81,10 @@ func NewModel() *Model {
 func (model *Model) Init() *Model {
 	model.Data = make(map[string][]int)
 	model.Suggest = make(map[string][]string)
-	model.Depth = 2
-	model.Threshold = 3          // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
-	model.UseAutocomplete = true // Default is to include Autocomplete
-	model.SuffDivergenceThreshold = 100
+	model.Depth = SPELL_DEPTH_DEFAULT
+	model.Threshold = SPELL_THRESH_DEFAULT // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
+	model.UseAutocomplete = true           // Default is to include Autocomplete
+	model.SuffDivergenceThreshold = SUFF_DIVERGE_DEFAULT
 	return model
 }
 
@@ -131,9 +134,9 @@ func Load(filename string) (*Model, error) {
 	d := json.NewDecoder(f)
 	err = d.Decode(model)
 	if err != nil {
-		// Handle old model format
-		// TODO - convert old model to new
-		return model, err
+		if err = model.convertOldFormat(filename); err != nil {
+			return model, err
+		}
 	}
 	model.updateSuffixArr()
 	return model, nil

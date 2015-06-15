@@ -332,3 +332,9 @@ func TestAutocompleteFromQueries(t *testing.T) {
 		t.Errorf("Autocomplete failed to account for query training")
 	}
 }
+
+func TestLoadOldModel(t *testing.T) {
+	if _, err := Load("data/test.dict"); err != nil {
+		t.Errorf("Couldn't load old model format: %v", err)
+	}
+}
