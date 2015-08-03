@@ -25,11 +25,20 @@ type Pair struct {
 	str2 string
 }
 
+type Method int
+
+const (
+	MethodIsWord                   Method = 0
+	MethodSuggestMapsToInput              = 1
+	MethodInputDeleteMapsToDict           = 2
+	MethodInputDeleteMapsToSuggest        = 3
+)
+
 type Potential struct {
 	Term   string
 	Score  int
 	Leven  int
-	Method int // 0 - is word, 1 - suggest maps to input, 2 - input delete maps to dictionary, 3 - input delete maps to suggest
+	Method Method
 }
 
 type Counts struct {
@@ -408,7 +417,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 
 	// 0 - If this is a dictionary term we're all good, no need to go further
 	if model.score(input) > model.Threshold {
-		suggestions[input] = &Potential{Term: input, Score: model.score(input), Leven: 0, Method: 0}
+		suggestions[input] = &Potential{Term: input, Score: model.score(input), Leven: 0, Method: MethodIsWord}
 		if !exhaustive {
 			return suggestions
 		}
@@ -418,7 +427,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	if sugg, ok := model.Suggest[input]; ok {
 		for _, pot := range sugg {
 			if _, ok := suggestions[pot]; !ok {
-				suggestions[pot] = &Potential{Term: pot, Score: model.score(pot), Leven: Levenshtein(&input, &pot), Method: 1}
+				suggestions[pot] = &Potential{Term: pot, Score: model.score(pot), Leven: Levenshtein(&input, &pot), Method: MethodSuggestMapsToInput}
 			}
 		}
 
@@ -434,7 +443,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 		score := model.score(edit)
 		if score > 0 && len(edit) > 2 {
 			if _, ok := suggestions[edit]; !ok {
-				suggestions[edit] = &Potential{Term: edit, Score: score, Leven: Levenshtein(&input, &edit), Method: 2}
+				suggestions[edit] = &Potential{Term: edit, Score: score, Leven: Levenshtein(&input, &edit), Method: MethodInputDeleteMapsToDict}
 			}
 			if score > max {
 				max = score
@@ -458,7 +467,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 				lev := Levenshtein(&input, &pot)
 				if lev <= model.Depth+1 { // The +1 doesn't seem to impact speed, but has greater coverage when the depth is not sufficient to make suggestions
 					if _, ok := suggestions[pot]; !ok {
-						suggestions[pot] = &Potential{Term: pot, Score: model.score(pot), Leven: lev, Method: 3}
+						suggestions[pot] = &Potential{Term: pot, Score: model.score(pot), Leven: lev, Method: MethodInputDeleteMapsToSuggest}
 					}
 				}
 			}
