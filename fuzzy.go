@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	SPELL_DEPTH_DEFAULT  = 2
-	SPELL_THRESH_DEFAULT = 5
-	SUFF_DIVERGE_DEFAULT = 100
+	SpellDepthDefault              = 2
+	SpellThresholdDefault          = 5
+	SuffDivergenceThresholdDefault = 100
 )
 
 type Pair struct {
@@ -84,10 +84,10 @@ func NewModel() *Model {
 func (model *Model) Init() *Model {
 	model.Data = make(map[string]*Counts)
 	model.Suggest = make(map[string][]string)
-	model.Depth = SPELL_DEPTH_DEFAULT
-	model.Threshold = SPELL_THRESH_DEFAULT // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
-	model.UseAutocomplete = true           // Default is to include Autocomplete
-	model.SuffDivergenceThreshold = SUFF_DIVERGE_DEFAULT
+	model.Depth = SpellDepthDefault
+	model.Threshold = SpellThresholdDefault // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
+	model.UseAutocomplete = true            // Default is to include Autocomplete
+	model.SuffDivergenceThreshold = SuffDivergenceThresholdDefault
 	return model
 }
 

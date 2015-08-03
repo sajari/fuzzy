@@ -32,7 +32,7 @@ func (model *Model) convertOldFormat(filename string) error {
 
 	// Correct for old models pre divergence measure
 	if model.SuffDivergenceThreshold == 0 {
-		model.SuffDivergenceThreshold = SUFF_DIVERGE_DEFAULT
+		model.SuffDivergenceThreshold = SuffDivergenceThresholdDefault
 	}
 
 	// Convert fields
