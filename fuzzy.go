@@ -15,8 +15,6 @@ import (
 )
 
 const (
-	CORPUS               = 0
-	QUERY                = 1
 	SPELL_DEPTH_DEFAULT  = 2
 	SPELL_THRESH_DEFAULT = 5
 	SUFF_DIVERGE_DEFAULT = 100
@@ -34,8 +32,13 @@ type Potential struct {
 	Method int // 0 - is word, 1 - suggest maps to input, 2 - input delete maps to dictionary, 3 - input delete maps to suggest
 }
 
+type Counts struct {
+	Corpus int `json:"corpus"`
+	Query  int `json:"query"`
+}
+
 type Model struct {
-	Data                    map[string][]int    `json:"data"`
+	Data                    map[string]*Counts  `json:"data"`
 	Maxcount                int                 `json:"maxcount"`
 	Suggest                 map[string][]string `json:"suggest"`
 	Depth                   int                 `json:"depth"`
@@ -59,10 +62,10 @@ func (a Autos) Len() int      { return len(a.Results) }
 func (a Autos) Swap(i, j int) { a.Results[i], a.Results[j] = a.Results[j], a.Results[i] }
 
 func (a Autos) Less(i, j int) bool {
-	icc := a.Model.Data[a.Results[i]][CORPUS]
-	jcc := a.Model.Data[a.Results[j]][CORPUS]
-	icq := a.Model.Data[a.Results[i]][QUERY]
-	jcq := a.Model.Data[a.Results[j]][QUERY]
+	icc := a.Model.Data[a.Results[i]].Corpus
+	jcc := a.Model.Data[a.Results[j]].Corpus
+	icq := a.Model.Data[a.Results[i]].Query
+	jcq := a.Model.Data[a.Results[j]].Query
 	if icq == jcq {
 		if icc == jcc {
 			return a.Results[i] > a.Results[j]
@@ -79,7 +82,7 @@ func NewModel() *Model {
 }
 
 func (model *Model) Init() *Model {
-	model.Data = make(map[string][]int)
+	model.Data = make(map[string]*Counts)
 	model.Suggest = make(map[string][]string)
 	model.Depth = SPELL_DEPTH_DEFAULT
 	model.Threshold = SPELL_THRESH_DEFAULT // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
@@ -115,7 +118,7 @@ func (model *Model) Save(filename string) error {
 func (model *Model) SaveLight(filename string) error {
 	model.Lock()
 	for term, count := range model.Data {
-		if count[CORPUS] < model.Threshold {
+		if count.Corpus < model.Threshold {
 			delete(model.Data, term)
 		}
 	}
@@ -227,7 +230,7 @@ func (model *Model) Train(terms []string) {
 // counts without needing to run "TrainWord" repeatedly
 func (model *Model) SetCount(term string, count int, suggest bool) {
 	model.Lock()
-	model.Data[term] = []int{count, 0} // Note: This may reset a query count? TODO
+	model.Data[term] = &Counts{count, 0} // Note: This may reset a query count? TODO
 	if suggest {
 		model.createSuggestKeys(term)
 	}
@@ -240,17 +243,17 @@ func (model *Model) SetCount(term string, count int, suggest bool) {
 func (model *Model) TrainWord(term string) {
 	model.Lock()
 	if t, ok := model.Data[term]; ok {
-		t[CORPUS]++
+		t.Corpus++
 	} else {
-		model.Data[term] = []int{1, 0}
+		model.Data[term] = &Counts{1, 0}
 	}
 	// Set the max
-	if model.Data[term][CORPUS] > model.Maxcount {
-		model.Maxcount = model.Data[term][CORPUS]
+	if model.Data[term].Corpus > model.Maxcount {
+		model.Maxcount = model.Data[term].Corpus
 		model.SuffDivergence++
 	}
 	// If threshold is triggered, store delete suggestion keys
-	if model.Data[term][CORPUS] == model.Threshold {
+	if model.Data[term].Corpus == model.Threshold {
 		model.createSuggestKeys(term)
 	}
 	model.Unlock()
@@ -262,15 +265,12 @@ func (model *Model) TrainWord(term string) {
 func (model *Model) TrainQuery(term string) {
 	model.Lock()
 	if t, ok := model.Data[term]; ok {
-		t[QUERY]++
+		t.Query++
 	} else {
-		model.Data[term] = []int{0, 1}
+		model.Data[term] = &Counts{0, 1}
 	}
 	model.SuffDivergence++
-	update := false
-	if model.SuffDivergence > model.SuffDivergenceThreshold {
-		update = true
-	}
+	update := model.SuffDivergence > model.SuffDivergenceThreshold
 	model.Unlock()
 	if update {
 		model.updateSuffixArr()
@@ -337,7 +337,7 @@ func Edits1(word string) []string {
 
 func (model *Model) score(input string) int {
 	if score, ok := model.Data[input]; ok {
-		return score[CORPUS]
+		return score.Corpus
 	}
 	return 0
 }
@@ -533,7 +533,7 @@ func (model *Model) updateSuffixArr() {
 	model.RLock()
 	termArr := make([]string, 0, 1000)
 	for term, count := range model.Data {
-		if count[CORPUS] > model.Threshold || count[QUERY] > 0 { // TODO: query threshold?
+		if count.Corpus > model.Threshold || count.Query > 0 { // TODO: query threshold?
 			termArr = append(termArr, term)
 		}
 	}
@@ -557,7 +557,7 @@ func (model *Model) Autocomplete(input string) ([]string, error) {
 	a := &Autos{Results: make([]string, 0, len(matches)), Model: model}
 	for _, m := range matches {
 		str := strings.Trim(model.SuffixArrConcat[m[0]:m[1]], "\x00")
-		if count, ok := model.Data[str]; ok && count[CORPUS] > model.Threshold || count[QUERY] > 0 {
+		if count, ok := model.Data[str]; ok && count.Corpus > model.Threshold || count.Query > 0 {
 			a.Results = append(a.Results, str)
 		}
 	}

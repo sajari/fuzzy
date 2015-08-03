@@ -44,9 +44,9 @@ func (model *Model) convertOldFormat(filename string) error {
 
 	// Convert the old counts
 	if len(oldmodel.Data) > 0 {
-		model.Data = make(map[string][]int, len(oldmodel.Data))
+		model.Data = make(map[string]*Counts, len(oldmodel.Data))
 		for term, cc := range oldmodel.Data {
-			model.Data[term] = []int{cc, 0}
+			model.Data[term] = &Counts{cc, 0}
 		}
 	}
 	return nil
