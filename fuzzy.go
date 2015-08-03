@@ -14,6 +14,12 @@ import (
 	"sync"
 )
 
+const (
+	SpellDepthDefault              = 2
+	SpellThresholdDefault          = 5
+	SuffDivergenceThresholdDefault = 100
+)
+
 type Pair struct {
 	str1 string
 	str2 string
@@ -26,16 +32,22 @@ type Potential struct {
 	Method int // 0 - is word, 1 - suggest maps to input, 2 - input delete maps to dictionary, 3 - input delete maps to suggest
 }
 
+type Counts struct {
+	Corpus int `json:"corpus"`
+	Query  int `json:"query"`
+}
+
 type Model struct {
-	Data            map[string]int      `json:"data"`
-	Maxcount        int                 `json:"maxcount"`
-	Suggest         map[string][]string `json:"suggest"`
-	Depth           int                 `json:"depth"`
-	Threshold       int                 `json:"threshold"`
-	UseAutocomplete bool                `json:"autocomplete"`
-	SuffDivergence  int                 `json:"-"`
-	SuffixArr       *suffixarray.Index  `json:"-"`
-	SuffixArrConcat string              `json:"-"`
+	Data                    map[string]*Counts  `json:"data"`
+	Maxcount                int                 `json:"maxcount"`
+	Suggest                 map[string][]string `json:"suggest"`
+	Depth                   int                 `json:"depth"`
+	Threshold               int                 `json:"threshold"`
+	UseAutocomplete         bool                `json:"autocomplete"`
+	SuffDivergence          int                 `json:"-"`
+	SuffDivergenceThreshold int                 `json:"suff_threshold"`
+	SuffixArr               *suffixarray.Index  `json:"-"`
+	SuffixArrConcat         string              `json:"-"`
 	sync.RWMutex
 }
 
@@ -50,12 +62,17 @@ func (a Autos) Len() int      { return len(a.Results) }
 func (a Autos) Swap(i, j int) { a.Results[i], a.Results[j] = a.Results[j], a.Results[i] }
 
 func (a Autos) Less(i, j int) bool {
-	icount := a.Model.Data[a.Results[i]]
-	jcount := a.Model.Data[a.Results[j]]
-	if icount == jcount {
-		return a.Results[i] > a.Results[j]
+	icc := a.Model.Data[a.Results[i]].Corpus
+	jcc := a.Model.Data[a.Results[j]].Corpus
+	icq := a.Model.Data[a.Results[i]].Query
+	jcq := a.Model.Data[a.Results[j]].Query
+	if icq == jcq {
+		if icc == jcc {
+			return a.Results[i] > a.Results[j]
+		}
+		return icc > jcc
 	}
-	return icount > jcount
+	return icq > jcq
 }
 
 // Create and initialise a new model
@@ -65,11 +82,12 @@ func NewModel() *Model {
 }
 
 func (model *Model) Init() *Model {
-	model.Data = make(map[string]int)
+	model.Data = make(map[string]*Counts)
 	model.Suggest = make(map[string][]string)
-	model.Depth = 2
-	model.Threshold = 3          // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
-	model.UseAutocomplete = true // Default is to include Autocomplete
+	model.Depth = SpellDepthDefault
+	model.Threshold = SpellThresholdDefault // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
+	model.UseAutocomplete = true            // Default is to include Autocomplete
+	model.SuffDivergenceThreshold = SuffDivergenceThresholdDefault
 	return model
 }
 
@@ -100,7 +118,7 @@ func (model *Model) Save(filename string) error {
 func (model *Model) SaveLight(filename string) error {
 	model.Lock()
 	for term, count := range model.Data {
-		if count < model.Threshold {
+		if count.Corpus < model.Threshold {
 			delete(model.Data, term)
 		}
 	}
@@ -116,11 +134,12 @@ func Load(filename string) (*Model, error) {
 		return model, err
 	}
 	defer f.Close()
-	//b := bufio.NewReader(f)
 	d := json.NewDecoder(f)
 	err = d.Decode(model)
 	if err != nil {
-		return model, err
+		if err = model.convertOldFormat(filename); err != nil {
+			return model, err
+		}
 	}
 	model.updateSuffixArr()
 	return model, nil
@@ -151,6 +170,16 @@ func (model *Model) SetUseAutocomplete(val bool) {
 	if !old && val {
 		model.updateSuffixArr()
 	}
+}
+
+// Optionally set the suffix array divergence threshold. This is
+// the number of query training steps between rebuilds of the
+// suffix array. A low number will be more accurate but will use
+// resources and create more garbage.
+func (model *Model) SetDivergenceThreshold(val int) {
+	model.Lock()
+	model.SuffDivergenceThreshold = val
+	model.Unlock()
 }
 
 // Calculate the Levenshtein distance between two strings
@@ -201,27 +230,51 @@ func (model *Model) Train(terms []string) {
 // counts without needing to run "TrainWord" repeatedly
 func (model *Model) SetCount(term string, count int, suggest bool) {
 	model.Lock()
-	model.Data[term] = count
+	model.Data[term] = &Counts{count, 0} // Note: This may reset a query count? TODO
 	if suggest {
 		model.createSuggestKeys(term)
 	}
 	model.Unlock()
 }
 
-// Train the model word by word
+// Train the model word by word. This is corpus training as opposed
+// to query training. Word counts from this type of training are not
+// likely to correlate with those of search queries
 func (model *Model) TrainWord(term string) {
 	model.Lock()
-	model.Data[term]++
+	if t, ok := model.Data[term]; ok {
+		t.Corpus++
+	} else {
+		model.Data[term] = &Counts{1, 0}
+	}
 	// Set the max
-	if model.Data[term] > model.Maxcount {
-		model.Maxcount = model.Data[term]
+	if model.Data[term].Corpus > model.Maxcount {
+		model.Maxcount = model.Data[term].Corpus
 		model.SuffDivergence++
 	}
 	// If threshold is triggered, store delete suggestion keys
-	if model.Data[term] == model.Threshold {
+	if model.Data[term].Corpus == model.Threshold {
 		model.createSuggestKeys(term)
 	}
 	model.Unlock()
+}
+
+// Train using a search query term. This builds a second popularity
+// index of terms used to search, as opposed to generally occurring
+// in corpus text
+func (model *Model) TrainQuery(term string) {
+	model.Lock()
+	if t, ok := model.Data[term]; ok {
+		t.Query++
+	} else {
+		model.Data[term] = &Counts{0, 1}
+	}
+	model.SuffDivergence++
+	update := model.SuffDivergence > model.SuffDivergenceThreshold
+	model.Unlock()
+	if update {
+		model.updateSuffixArr()
+	}
 }
 
 // For a given term, create the partially deleted lookup keys
@@ -284,7 +337,7 @@ func Edits1(word string) []string {
 
 func (model *Model) score(input string) int {
 	if score, ok := model.Data[input]; ok {
-		return score
+		return score.Corpus
 	}
 	return 0
 }
@@ -480,7 +533,7 @@ func (model *Model) updateSuffixArr() {
 	model.RLock()
 	termArr := make([]string, 0, 1000)
 	for term, count := range model.Data {
-		if count > model.Threshold {
+		if count.Corpus > model.Threshold || count.Query > 0 { // TODO: query threshold?
 			termArr = append(termArr, term)
 		}
 	}
@@ -504,7 +557,7 @@ func (model *Model) Autocomplete(input string) ([]string, error) {
 	a := &Autos{Results: make([]string, 0, len(matches)), Model: model}
 	for _, m := range matches {
 		str := strings.Trim(model.SuffixArrConcat[m[0]:m[1]], "\x00")
-		if count, ok := model.Data[str]; ok && count > model.Threshold && count < model.Maxcount/50 {
+		if count, ok := model.Data[str]; ok && count.Corpus > model.Threshold || count.Query > 0 {
 			a.Results = append(a.Results, str)
 		}
 	}

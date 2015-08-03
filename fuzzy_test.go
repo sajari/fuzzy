@@ -16,7 +16,7 @@ func TestSpelling(t *testing.T) {
 	model.SetThreshold(1)
 
 	// Train multiple words simultaneously
-	words := []string{"bob", "your", "uncle", "dynamite", "delicate", "biggest", "big", "bigger", "aunty", "you're"}
+	words := []string{"bob", "your", "uncle", "dynamite", "delicate", "biggest", "big", "bigger", "aunty", "you're", "bob", "your"}
 	model.Train(words)
 
 	// Check Spelling
@@ -35,7 +35,6 @@ func TestSpelling(t *testing.T) {
 	if model.SpellCheck("dellicade") != "delicate" {
 		t.Errorf("Spell check: Two char change failed")
 	}
-
 }
 
 func TestSuggestions(t *testing.T) {
@@ -306,5 +305,36 @@ func TestAutocomplete(t *testing.T) {
 		if val, ok := expected[m]; !ok {
 			t.Errorf("Expected to find %v (%v), but didn't", m, val)
 		}
+	}
+}
+
+// Test to ensure query training begins to dominate over
+// corpus training when autocompleting
+func TestAutocompleteFromQueries(t *testing.T) {
+	model := NewModel()
+	// Changing defaults for testing only, this is not advisable on production
+	model.SetThreshold(1)
+	model.SetDivergenceThreshold(1)
+
+	model.Train([]string{"every", "every", "every", "every", "every", "every", "everest", "eveready", "eveready", "everything", "everything"})
+	model.TrainQuery("everest")  // Simulate a query
+	model.TrainQuery("everest")  // Simulate a query
+	model.TrainQuery("eveready") // Simulate a query
+
+	out, err := model.Autocomplete("eve")
+	if err != nil {
+		t.Errorf("Auocomplete() returned and error: ", err)
+	}
+	if out[0] != "everest" {
+		t.Errorf("Autocomplete failed to account for query training")
+	}
+	if out[1] != "eveready" {
+		t.Errorf("Autocomplete failed to account for query training")
+	}
+}
+
+func TestLoadOldModel(t *testing.T) {
+	if _, err := Load("data/test.dict"); err != nil {
+		t.Errorf("Couldn't load old model format: %v", err)
 	}
 }
