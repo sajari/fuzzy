@@ -1,7 +1,5 @@
-
-
-Fuzzy
-=====
+# Fuzzy
+[![Build Status](https://travis-ci.org/sajari/fuzzy.svg?branch=master)](https://travis-ci.org/sajari/fuzzy)
 
 Fuzzy is a very fast spell checker and query suggester written in Golang. 
 
