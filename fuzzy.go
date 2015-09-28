@@ -379,6 +379,21 @@ func best(input string, potential map[string]*Potential) string {
 	return best
 }
 
+// From a group of potentials, work out the most likely results, in order of
+// best to worst
+func bestn(input string, potential map[string]*Potential, n int) []string {
+	var output []string
+	for i := 0; i < n; i++ {
+		if len(potential) == 0 {
+			break
+		}
+		b := best(input, potential)
+		output = append(output, b)
+		delete(potential, b)
+	}
+	return output
+}
+
 // Test an input, if we get it wrong, look at why it is wrong. This
 // function returns a bool indicating if the guess was correct as well
 // as the term it is suggesting. Typically this function would be used
@@ -502,6 +517,14 @@ func (model *Model) SpellCheck(input string) string {
 	suggestions := model.suggestPotential(input, false)
 	model.RUnlock()
 	return best(input, suggestions)
+}
+
+// Return the most likely corrections in order from best to worst
+func (model *Model) SpellCheckSuggestions(input string, n int) []string {
+	model.RLock()
+	suggestions := model.suggestPotential(input, false)
+	model.RUnlock()
+	return bestn(input, suggestions, n)
 }
 
 func SampleEnglish() []string {

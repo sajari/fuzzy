@@ -37,6 +37,42 @@ func TestSpelling(t *testing.T) {
 	}
 }
 
+func TestSpellingSuggestions(t *testing.T) {
+	model := NewModel()
+
+	// For testing only, this is not advisable on production
+	model.SetThreshold(1)
+
+	// Train multiple words simultaneously
+	words := []string{"bob", "your", "uncle", "dynamite", "delicate", "biggest", "big", "bigger", "aunty", "you're", "bob", "your"}
+	model.Train(words)
+
+	// Check Spelling
+	if model.SpellCheckSuggestions("yor", 2)[0] != "your" {
+		t.Errorf("Spell check: Single char delete failed")
+	}
+	if model.SpellCheckSuggestions("uncel", 2)[0] != "uncle" {
+		t.Errorf("Spell check: Single char transpose failed")
+	}
+	if model.SpellCheckSuggestions("dynemite", 2)[0] != "dynamite" {
+		t.Errorf("Spell check: Single char swap failed")
+	}
+	if model.SpellCheckSuggestions("dellicate", 2)[0] != "delicate" {
+		t.Errorf("Spell check: Single char insertion failed")
+	}
+	if model.SpellCheckSuggestions("dellicade", 2)[0] != "delicate" {
+		t.Errorf("Spell check: Two char change failed")
+	}
+
+	suggestions := model.SpellCheckSuggestions("bigge", 2)
+	if suggestions[0] != "bigger" {
+		t.Errorf("Spell check suggestions, Single char delete is closest")
+	}
+	if suggestions[1] != "biggest" {
+		t.Errorf("Spell check suggestions, Double char delete 2nd closest")
+	}
+}
+
 func TestSuggestions(t *testing.T) {
 	model := NewModel()
 
