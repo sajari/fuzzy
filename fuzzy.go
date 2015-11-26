@@ -412,7 +412,7 @@ func bestn(input string, potential map[string]*Potential, n int) []string {
 	//log.Println("sorted:", scores)
 	count := len(scores)
 	var output []string = make([]string, 0, count)
-	if n > count {
+	if n > count || n < 0 {
 		n = count
 	}
 	for i := 0; i < n; i++ {
