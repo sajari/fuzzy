@@ -353,44 +353,85 @@ func (model *Model) score(input string) int {
 
 // From a group of potentials, work out the most likely result
 func best(input string, potential map[string]*Potential) string {
-	best := ""
-	bestcalc := 0
-	for i := 0; i < 4; i++ {
-		for _, pot := range potential {
-			if pot.Leven == 0 {
-				return pot.Term
-			} else if pot.Leven == i {
-				if pot.Score > bestcalc {
-					bestcalc = pot.Score
-					// If the first letter is the same, that's a good sign. Bias these potentials
-					if pot.Term[0] == input[0] {
-						bestcalc += bestcalc * 100
-					}
-
-					best = pot.Term
-				}
-			}
-		}
-		if bestcalc > 0 {
-			return best
-		}
+	results := bestn(input, potential, 1)
+	if len(results) > 0 {
+		return results[0]
 	}
+	return ""
 
-	return best
+	// best := ""
+	// bestcalc := 0
+	// for i := 0; i < 4; i++ {
+	// 	for _, pot := range potential {
+	// 		if pot.Leven == 0 {
+	// 			log.Println("lenven=0")
+	// 			return pot.Term
+	// 		} else if pot.Leven == i {
+	// 			if pot.Score > bestcalc {
+	// 				bestcalc = pot.Score
+	// 				// If the first letter is the same, that's a good sign. Bias these potentials
+	// 				if pot.Term[0] == input[0] {
+	// 					bestcalc += bestcalc * 100
+	// 				}
+
+	// 				best = pot.Term
+	// 			}
+	// 		}
+	// 	}
+	// 	if bestcalc > 0 {
+	// 		return best
+	// 	}
+	// }
+
+	// return best
 }
 
 // From a group of potentials, work out the most likely results, in order of
 // best to worst
 func bestn(input string, potential map[string]*Potential, n int) []string {
-	var output []string
-	for i := 0; i < n; i++ {
-		if len(potential) == 0 {
-			break
+
+	tmp := make(map[int]string, len(potential))
+	scores := make(sort.IntSlice, 0, len(potential))
+	for key, pot := range potential {
+		score := pot.Score*100000 - (pot.Leven * 1000)
+		for {
+			if _, ok := tmp[score]; ok {
+				score++
+			} else {
+				break
+			}
 		}
-		b := best(input, potential)
-		output = append(output, b)
-		delete(potential, b)
+
+		tmp[score] = key
+		scores = append(scores, score)
+
+		//		log.Printf("Key:%s, len:%d, score:%d, term:%s", key, pot.Leven, pot.Score, pot.Term)
 	}
+	//log.Println(" before sorted:", scores)
+	scores.Sort()
+	//log.Println("sorted:", scores)
+	count := len(scores)
+	var output []string = make([]string, 0, count)
+	if n > count || n < 0 {
+		n = count
+	}
+	for i := 0; i < n; i++ {
+		//log.Println("index:", 1, count-i-1, scores[count-i-1], tmp[scores[count-i-1]])
+		output = append(output, tmp[scores[count-i-1]])
+	}
+
+	//log.Println("Best for", input, output, tmp)
+
+	// var output []string
+	// if n > len(potential) {
+	// 	n = len(potential)
+	// }
+	// for i := 0; i < n; i++ {
+	// 	b := best(input, potential)
+	// 	output = append(output, b)
+
+	// 	delete(potential, b)
+	// }
 	return output
 }
 
@@ -524,6 +565,7 @@ func (model *Model) SpellCheckSuggestions(input string, n int) []string {
 	model.RLock()
 	suggestions := model.suggestPotential(input, false)
 	model.RUnlock()
+
 	return bestn(input, suggestions, n)
 }
 
