@@ -580,6 +580,9 @@ func (model *Model) Autocomplete(input string) ([]string, error) {
 	if !model.UseAutocomplete {
 		return []string{}, errors.New("Autocomplete is disabled")
 	}
+	if len(input) == 0 {
+		return []string{}, errors.New("Input cannot have length zero")
+	}
 	express := "\x00" + input + "[^\x00]*"
 	match, err := regexp.Compile(express)
 	if err != nil {
