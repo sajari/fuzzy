@@ -35,10 +35,11 @@ const (
 )
 
 type Potential struct {
-	Term   string
-	Score  int
-	Leven  int
-	Method Method
+	Term      string // Potential term string
+	Score     int    // Score
+	Leven     int    // Levenstein distance from the suggestion to the input
+	FirstChar bool   // Is the first char of this potential the same as the input?
+	Method    Method // How this potential was matched
 }
 
 type Counts struct {
@@ -82,6 +83,24 @@ func (a Autos) Less(i, j int) bool {
 		return icc > jcc
 	}
 	return icq > jcq
+}
+
+func (m Method) String() string {
+	switch m {
+	case MethodIsWord:
+		return "Input in dictionary"
+	case MethodSuggestMapsToInput:
+		return "Suggest maps to input"
+	case MethodInputDeleteMapsToDict:
+		return "Input delete maps to dictionary"
+	case MethodInputDeleteMapsToSuggest:
+		return "Input delete maps to suggest key"
+	}
+	return "unknown"
+}
+
+func (pot *Potential) String() string {
+	return fmt.Sprintf("Term: %v\n\tScore: %v\n\tLeven: %v\n\tFirst Char: %v\n\tMethod: %v\n\n", pot.Term, pot.Score, pot.Leven, pot.FirstChar, pot.Method)
 }
 
 // Create and initialise a new model
@@ -344,7 +363,7 @@ func Edits1(word string) []string {
 	return total_set
 }
 
-func (model *Model) score(input string) int {
+func (model *Model) corpusCount(input string) int {
 	if score, ok := model.Data[input]; ok {
 		return score.Corpus
 	}
@@ -353,20 +372,20 @@ func (model *Model) score(input string) int {
 
 // From a group of potentials, work out the most likely result
 func best(input string, potential map[string]*Potential) string {
-	best := ""
-	bestcalc := 0
+	var best string
+	var bestcalc, bonus int
 	for i := 0; i < 4; i++ {
 		for _, pot := range potential {
 			if pot.Leven == 0 {
 				return pot.Term
 			} else if pot.Leven == i {
-				if pot.Score > bestcalc {
-					bestcalc = pot.Score
-					// If the first letter is the same, that's a good sign. Bias these potentials
-					if pot.Term[0] == input[0] {
-						bestcalc += bestcalc * 100
-					}
-
+				bonus = 0
+				// If the first letter is the same, that's a good sign. Bias these potentials
+				if pot.FirstChar {
+					bonus = 1000
+				}
+				if pot.Score+bonus > bestcalc {
+					bestcalc = pot.Score + bonus
 					best = pot.Term
 				}
 			}
@@ -375,7 +394,6 @@ func best(input string, potential map[string]*Potential) string {
 			return best
 		}
 	}
-
 	return best
 }
 
@@ -410,8 +428,8 @@ func (model *Model) CheckKnown(input string, correct string) bool {
 	}
 	if pot, ok := suggestions[correct]; !ok {
 
-		if model.score(correct) > 0 {
-			fmt.Printf("\"%v\" - %v (%v) not in the suggestions. (%v) best option.\n", input, correct, model.score(correct), best)
+		if model.corpusCount(correct) > 0 {
+			fmt.Printf("\"%v\" - %v (%v) not in the suggestions. (%v) best option.\n", input, correct, model.corpusCount(correct), best)
 			for _, sugg := range suggestions {
 				fmt.Printf("	%v\n", sugg)
 			}
@@ -431,8 +449,8 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	suggestions := make(map[string]*Potential, 20)
 
 	// 0 - If this is a dictionary term we're all good, no need to go further
-	if model.score(input) > model.Threshold {
-		suggestions[input] = &Potential{Term: input, Score: model.score(input), Leven: 0, Method: MethodIsWord}
+	if model.corpusCount(input) > model.Threshold {
+		suggestions[input] = &Potential{Term: input, Score: model.corpusCount(input), Leven: 0, FirstChar: true, Method: MethodIsWord}
 		if !exhaustive {
 			return suggestions
 		}
@@ -442,7 +460,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	if sugg, ok := model.Suggest[input]; ok {
 		for _, pot := range sugg {
 			if _, ok := suggestions[pot]; !ok {
-				suggestions[pot] = &Potential{Term: pot, Score: model.score(pot), Leven: Levenshtein(&input, &pot), Method: MethodSuggestMapsToInput}
+				suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: Levenshtein(&input, &pot), FirstChar: pot[0] == input[0], Method: MethodSuggestMapsToInput}
 			}
 		}
 
@@ -455,10 +473,10 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	max := 0
 	edits := model.EditsMulti(input, model.Depth)
 	for _, edit := range edits {
-		score := model.score(edit)
+		score := model.corpusCount(edit)
 		if score > 0 && len(edit) > 2 {
 			if _, ok := suggestions[edit]; !ok {
-				suggestions[edit] = &Potential{Term: edit, Score: score, Leven: Levenshtein(&input, &edit), Method: MethodInputDeleteMapsToDict}
+				suggestions[edit] = &Potential{Term: edit, Score: score, Leven: Levenshtein(&input, &edit), FirstChar: edit[0] == input[0], Method: MethodInputDeleteMapsToDict}
 			}
 			if score > max {
 				max = score
@@ -482,7 +500,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 				lev := Levenshtein(&input, &pot)
 				if lev <= model.Depth+1 { // The +1 doesn't seem to impact speed, but has greater coverage when the depth is not sufficient to make suggestions
 					if _, ok := suggestions[pot]; !ok {
-						suggestions[pot] = &Potential{Term: pot, Score: model.score(pot), Leven: lev, Method: MethodInputDeleteMapsToSuggest}
+						suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: lev, FirstChar: pot[0] == input[0], Method: MethodInputDeleteMapsToSuggest}
 					}
 				}
 			}

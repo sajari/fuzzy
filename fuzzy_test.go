@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+var sampleEnglish []string
+
+func init() {
+	sampleEnglish = SampleEnglish()
+}
+
 func TestSpelling(t *testing.T) {
 	model := NewModel()
 
@@ -120,8 +126,7 @@ func TestConcurrency(t *testing.T) {
 	runtime.GOMAXPROCS(cpu)
 	model := NewModel()
 
-	english := SampleEnglish()
-	piece := len(english) / cpu
+	piece := len(sampleEnglish) / cpu
 
 	var wg sync.WaitGroup
 	// Train concurrently
@@ -130,7 +135,7 @@ func TestConcurrency(t *testing.T) {
 		go func(i int) {
 			begin := i * piece
 			end := (i+1)*piece - 1
-			model.Train(english[begin:end])
+			model.Train(sampleEnglish[begin:end])
 			wg.Done()
 		}(i)
 	}
@@ -155,8 +160,7 @@ func TestConcurrency(t *testing.T) {
 // dictionary, although it is still missing some of the common words in the test sets
 // We aim for > 60% correction success at a rate of > 5000Hz (single threaded)
 func TestAccuracy(t *testing.T) {
-	// FIXME: Changed this from .60 so that automated builds finish (failing on .59).
-	const test2AccuracyThreshold = .55
+	const test2AccuracyThreshold = .59
 
 	tests1 := map[string]string{"access": "acess", "accessing": "accesing", "accommodation": "accomodation acommodation acomodation", "account": "acount", "address": "adress adres", "addressable": "addresable", "arranged": "aranged arrainged",
 		"arranging": "aranging", "arrangement": "arragment", "articles": "articals",
@@ -261,7 +265,7 @@ func TestAccuracy(t *testing.T) {
 		"together": "togehter", "profits": "proffits"}
 
 	model := NewModel()
-	model.Train(SampleEnglish())
+	model.Train(sampleEnglish)
 
 	// Look at test sets
 	// SET 1
@@ -329,7 +333,7 @@ func TestAccuracy(t *testing.T) {
 // Quick test to make sure we're picking up the right stuff
 func TestAutocomplete(t *testing.T) {
 	model := NewModel()
-	model.Train(SampleEnglish())
+	model.Train(sampleEnglish)
 	out, err := model.Autocomplete("accoun")
 	if err != nil {
 		t.Errorf("Auocomplete() returned and error: ", err)
