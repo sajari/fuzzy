@@ -35,11 +35,10 @@ const (
 )
 
 type Potential struct {
-	Term      string // Potential term string
-	Score     int    // Score
-	Leven     int    // Levenstein distance from the suggestion to the input
-	FirstChar bool   // Is the first char of this potential the same as the input?
-	Method    Method // How this potential was matched
+	Term   string // Potential term string
+	Score  int    // Score
+	Leven  int    // Levenstein distance from the suggestion to the input
+	Method Method // How this potential was matched
 }
 
 type Counts struct {
@@ -100,7 +99,7 @@ func (m Method) String() string {
 }
 
 func (pot *Potential) String() string {
-	return fmt.Sprintf("Term: %v\n\tScore: %v\n\tLeven: %v\n\tFirst Char: %v\n\tMethod: %v\n\n", pot.Term, pot.Score, pot.Leven, pot.FirstChar, pot.Method)
+	return fmt.Sprintf("Term: %v\n\tScore: %v\n\tLeven: %v\n\tMethod: %v\n\n", pot.Term, pot.Score, pot.Leven, pot.Method)
 }
 
 // Create and initialise a new model
@@ -360,6 +359,15 @@ func Edits1(word string) []string {
 		}
 
 	}
+
+	// Special case ending in "ies" or "ys"
+	if strings.HasSuffix(word, "ies") {
+		total_set = append(total_set, word[:len(word)-3]+"ys")
+	}
+	if strings.HasSuffix(word, "ys") {
+		total_set = append(total_set, word[:len(word)-2]+"ies")
+	}
+
 	return total_set
 }
 
@@ -381,8 +389,8 @@ func best(input string, potential map[string]*Potential) string {
 			} else if pot.Leven == i {
 				bonus = 0
 				// If the first letter is the same, that's a good sign. Bias these potentials
-				if pot.FirstChar {
-					bonus = 1000
+				if pot.Term[0] == input[0] {
+					bonus += 100
 				}
 				if pot.Score+bonus > bestcalc {
 					bestcalc = pot.Score + bonus
@@ -450,7 +458,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 
 	// 0 - If this is a dictionary term we're all good, no need to go further
 	if model.corpusCount(input) > model.Threshold {
-		suggestions[input] = &Potential{Term: input, Score: model.corpusCount(input), Leven: 0, FirstChar: true, Method: MethodIsWord}
+		suggestions[input] = &Potential{Term: input, Score: model.corpusCount(input), Leven: 0, Method: MethodIsWord}
 		if !exhaustive {
 			return suggestions
 		}
@@ -460,7 +468,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	if sugg, ok := model.Suggest[input]; ok {
 		for _, pot := range sugg {
 			if _, ok := suggestions[pot]; !ok {
-				suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: Levenshtein(&input, &pot), FirstChar: pot[0] == input[0], Method: MethodSuggestMapsToInput}
+				suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: Levenshtein(&input, &pot), Method: MethodSuggestMapsToInput}
 			}
 		}
 
@@ -476,7 +484,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 		score := model.corpusCount(edit)
 		if score > 0 && len(edit) > 2 {
 			if _, ok := suggestions[edit]; !ok {
-				suggestions[edit] = &Potential{Term: edit, Score: score, Leven: Levenshtein(&input, &edit), FirstChar: edit[0] == input[0], Method: MethodInputDeleteMapsToDict}
+				suggestions[edit] = &Potential{Term: edit, Score: score, Leven: Levenshtein(&input, &edit), Method: MethodInputDeleteMapsToDict}
 			}
 			if score > max {
 				max = score
@@ -500,7 +508,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 				lev := Levenshtein(&input, &pot)
 				if lev <= model.Depth+1 { // The +1 doesn't seem to impact speed, but has greater coverage when the depth is not sufficient to make suggestions
 					if _, ok := suggestions[pot]; !ok {
-						suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: lev, FirstChar: pot[0] == input[0], Method: MethodInputDeleteMapsToSuggest}
+						suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: lev, Method: MethodInputDeleteMapsToSuggest}
 					}
 				}
 			}
