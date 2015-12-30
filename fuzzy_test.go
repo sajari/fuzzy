@@ -160,7 +160,7 @@ func TestConcurrency(t *testing.T) {
 // dictionary, although it is still missing some of the common words in the test sets
 // We aim for > 60% correction success at a rate of > 5000Hz (single threaded)
 func TestAccuracy(t *testing.T) {
-	const test2AccuracyThreshold = .59
+	const test2AccuracyThreshold = .60
 
 	tests1 := map[string]string{"access": "acess", "accessing": "accesing", "accommodation": "accomodation acommodation acomodation", "account": "acount", "address": "adress adres", "addressable": "addresable", "arranged": "aranged arrainged",
 		"arranging": "aranging", "arrangement": "arragment", "articles": "articals",
@@ -265,6 +265,7 @@ func TestAccuracy(t *testing.T) {
 		"together": "togehter", "profits": "proffits"}
 
 	model := NewModel()
+	model.SetThreshold(1) // This ensures a more complete dictionary at the expense of size/speed.
 	model.Train(sampleEnglish)
 
 	// Look at test sets
