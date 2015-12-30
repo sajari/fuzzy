@@ -17,7 +17,7 @@ Notes:
 Config:
 - Generally no config is required, but you can tweak the model for your application. 
 - `"threshold"` is the trigger point when a word becomes popular enough to build lookup keys for it. Setting this to "1" means any instance of a given word makes it a legitimate spelling. This typically corrects the most errors, but can also cause false positives if incorrect spellings exist in the training data. It also causes a much larger index to be built. By default this is set to 4.
-- `"depth"` is the Levenshtein distance the model builds lookup keys for. For spelling correction, a setting of "2" is typically very good. At a distance of "3" the potential number of words is much, much larger, but adds little benefit to accuracy. For query prediction a larger number can be useful, but again is much more expensive. **A depth of "1" and threshold of "1" for the 1st Norvig test set gives 63% correction accuracy at ~5usec per check (e.g. ~200kHz)**, for many applications this will be good enough. At depths > 2, the false positives begin to hurt the accuracy.
+- `"depth"` is the Levenshtein distance the model builds lookup keys for. For spelling correction, a setting of "2" is typically very good. At a distance of "3" the potential number of words is much, much larger, but adds little benefit to accuracy. For query prediction a larger number can be useful, but again is much more expensive. **A depth of "1" and threshold of "1" for the 1st Norvig test set gives ~70% correction accuracy at ~5usec per check (e.g. ~200kHz)**, for many applications this will be good enough. At depths > 2, the false positives begin to hurt the accuracy.
 
 Future improvements:
 - Make some of the expensive processes concurrent. 
