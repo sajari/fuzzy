@@ -603,6 +603,8 @@ func (model *Model) updateSuffixArr() {
 
 // For a given string, autocomplete using the suffix array model
 func (model *Model) Autocomplete(input string) ([]string, error) {
+	model.RLock()
+	defer model.RUnlock()
 	if !model.UseAutocomplete {
 		return []string{}, errors.New("Autocomplete is disabled")
 	}
@@ -618,8 +620,10 @@ func (model *Model) Autocomplete(input string) ([]string, error) {
 	a := &Autos{Results: make([]string, 0, len(matches)), Model: model}
 	for _, m := range matches {
 		str := strings.Trim(model.SuffixArrConcat[m[0]:m[1]], "\x00")
-		if count, ok := model.Data[str]; ok && count.Corpus > model.Threshold || count.Query > 0 {
-			a.Results = append(a.Results, str)
+		if count, ok := model.Data[str]; ok {
+			if count.Corpus > model.Threshold || count.Query > 0 {
+				a.Results = append(a.Results, str)
+			}
 		}
 	}
 	sort.Sort(a)
