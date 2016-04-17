@@ -155,6 +155,14 @@ func TestConcurrency(t *testing.T) {
 	wg.Wait()
 }
 
+func TestColdInit(t *testing.T) {
+	model := NewModel()
+	_, err := model.Autocomplete("a")
+	if err != nil {
+		t.Errorf("Failed to init and autocomplete: %v", err)
+	}
+}
+
 // Accuracy test sets come from Peter Norvig's set
 // The big.txt file is also from Peter Norvig's set. This helps to define a decent
 // dictionary, although it is still missing some of the common words in the test sets
