@@ -187,6 +187,7 @@ func Load(filename string) (*Model, error) {
 	defer f.Close()
 	model, err := FromReader(f)
 	if err != nil {
+		model = new(Model)
 		if err = model.convertOldFormat(filename); err != nil {
 			return model, err
 		}
