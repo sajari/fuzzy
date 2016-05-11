@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"index/suffixarray"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -119,6 +120,21 @@ func (model *Model) Init() *Model {
 	return model
 }
 
+// WriteTo writes a model to a Writer
+func (model *Model) WriteTo(w io.Writer) (int64, error) {
+	model.RLock()
+	defer model.RUnlock()
+	b, err := json.Marshal(model)
+	if err != nil {
+		return 0, err
+	}
+	n, err := w.Write(b)
+	if err != nil {
+		return int64(n), err
+	}
+	return int64(n), nil
+}
+
 // Save a spelling model to disk
 func (model *Model) Save(filename string) error {
 	model.RLock()
@@ -152,6 +168,18 @@ func (model *Model) SaveLight(filename string) error {
 	}
 	model.Unlock()
 	return model.Save(filename)
+}
+
+// FromReader loads a model from a Reader
+func FromReader(r io.Reader) (*Model, error) {
+	model := new(Model)
+	d := json.NewDecoder(r)
+	err := d.Decode(model)
+	if err != nil {
+		return nil, err
+	}
+	model.updateSuffixArr()
+	return model, nil
 }
 
 // Load a saved model from disk
