@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"index/suffixarray"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -119,24 +120,35 @@ func (model *Model) Init() *Model {
 	return model
 }
 
-// Save a spelling model to disk
-func (model *Model) Save(filename string) error {
+// WriteTo writes a model to a Writer
+func (model *Model) WriteTo(w io.Writer) (int64, error) {
 	model.RLock()
 	defer model.RUnlock()
+	b, err := json.Marshal(model)
+	if err != nil {
+		return 0, err
+	}
+	n, err := w.Write(b)
+	if err != nil {
+		return int64(n), err
+	}
+	return int64(n), nil
+}
+
+// Save a spelling model to disk
+func (model *Model) Save(filename string) error {
 	f, err := os.Create(filename)
 	if err != nil {
 		log.Println("Fuzzy model:", err)
 		return err
 	}
-	b := bufio.NewWriter(f)
-	e := json.NewEncoder(b)
 	defer f.Close()
-	defer b.Flush()
-	err = e.Encode(model)
+	_, err = model.WriteTo(f)
 	if err != nil {
 		log.Println("Fuzzy model:", err)
+		return err
 	}
-	return err
+	return nil
 }
 
 // Save a spelling model to disk, but discard all
@@ -154,22 +166,33 @@ func (model *Model) SaveLight(filename string) error {
 	return model.Save(filename)
 }
 
+// FromReader loads a model from a Reader
+func FromReader(r io.Reader) (*Model, error) {
+	model := new(Model)
+	d := json.NewDecoder(r)
+	err := d.Decode(model)
+	if err != nil {
+		return nil, err
+	}
+	model.updateSuffixArr()
+	return model, nil
+}
+
 // Load a saved model from disk
 func Load(filename string) (*Model, error) {
-	model := new(Model)
 	f, err := os.Open(filename)
 	if err != nil {
-		return model, err
+		return nil, err
 	}
 	defer f.Close()
-	d := json.NewDecoder(f)
-	err = d.Decode(model)
+	model, err := FromReader(f)
 	if err != nil {
+		model = new(Model)
 		if err = model.convertOldFormat(filename); err != nil {
 			return model, err
 		}
+		return nil, err
 	}
-	model.updateSuffixArr()
 	return model, nil
 }
 
