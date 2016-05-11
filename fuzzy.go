@@ -137,22 +137,18 @@ func (model *Model) WriteTo(w io.Writer) (int64, error) {
 
 // Save a spelling model to disk
 func (model *Model) Save(filename string) error {
-	model.RLock()
-	defer model.RUnlock()
 	f, err := os.Create(filename)
 	if err != nil {
 		log.Println("Fuzzy model:", err)
 		return err
 	}
-	b := bufio.NewWriter(f)
-	e := json.NewEncoder(b)
 	defer f.Close()
-	defer b.Flush()
-	err = e.Encode(model)
+	_, err = model.WriteTo(f)
 	if err != nil {
 		log.Println("Fuzzy model:", err)
+		return err
 	}
-	return err
+	return nil
 }
 
 // Save a spelling model to disk, but discard all
@@ -184,20 +180,18 @@ func FromReader(r io.Reader) (*Model, error) {
 
 // Load a saved model from disk
 func Load(filename string) (*Model, error) {
-	model := new(Model)
 	f, err := os.Open(filename)
 	if err != nil {
-		return model, err
+		return nil, err
 	}
 	defer f.Close()
-	d := json.NewDecoder(f)
-	err = d.Decode(model)
+	model, err := FromReader(f)
 	if err != nil {
 		if err = model.convertOldFormat(filename); err != nil {
 			return model, err
 		}
+		return nil, err
 	}
-	model.updateSuffixArr()
 	return model, nil
 }
 
