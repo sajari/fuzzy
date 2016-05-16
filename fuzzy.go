@@ -188,10 +188,10 @@ func Load(filename string) (*Model, error) {
 	model, err := FromReader(f)
 	if err != nil {
 		model = new(Model)
-		if err = model.convertOldFormat(filename); err != nil {
-			return model, err
+		if err1 := model.convertOldFormat(filename); err1 != nil {
+			return model, err1
 		}
-		return nil, err
+		return model, nil
 	}
 	return model, nil
 }
