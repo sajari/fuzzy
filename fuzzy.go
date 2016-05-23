@@ -572,7 +572,7 @@ func (model *Model) SpellCheck(input string) string {
 // Return the most likely corrections in order from best to worst
 func (model *Model) SpellCheckSuggestions(input string, n int) []string {
 	model.RLock()
-	suggestions := model.suggestPotential(input, false)
+	suggestions := model.suggestPotential(input, true)
 	model.RUnlock()
 	return bestn(input, suggestions, n)
 }
