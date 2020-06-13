@@ -1,8 +1,8 @@
 sudo: false
 language: go
 go:
-- 1.4
-- 1.5
+- 1.13
+- 1.14
 - tip
 notifications:
   email:
