@@ -345,7 +345,7 @@ func TestAutocomplete(t *testing.T) {
 	model.Train(sampleEnglish)
 	out, err := model.Autocomplete("accoun")
 	if err != nil {
-		t.Errorf("Auocomplete() returned and error: ", err)
+		t.Errorf("Autocomplete() returned an error: %s", err)
 	}
 	expected := map[string]bool{
 		"account":    true,
@@ -375,7 +375,7 @@ func TestAutocompleteFromQueries(t *testing.T) {
 
 	out, err := model.Autocomplete("eve")
 	if err != nil {
-		t.Errorf("Auocomplete() returned and error: ", err)
+		t.Errorf("Autocomplete() returned an error: %s", err)
 	}
 	if out[0] != "everest" {
 		t.Errorf("Autocomplete failed to account for query training")
