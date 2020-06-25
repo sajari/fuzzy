@@ -2,6 +2,7 @@ package fuzzy
 
 import (
 	"fmt"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -50,7 +51,7 @@ func TestSpellingSuggestions(t *testing.T) {
 	model.SetThreshold(1)
 
 	// Train multiple words simultaneously
-	words := []string{"bob", "your", "uncle", "dynamite", "delicate", "biggest", "big", "bigger", "aunty", "you're", "bob", "your"}
+	words := []string{"bob", "your", "uncle", "dynamite", "delicate", "biggest", "biggest", "big", "bigger", "aunty", "you're", "bob", "your"}
 	model.Train(words)
 
 	// Check Spelling
@@ -74,6 +75,7 @@ func TestSpellingSuggestions(t *testing.T) {
 	if suggestions[0] != "bigger" {
 		t.Errorf("Spell check suggestions, Single char delete is closest")
 	}
+	// "biggest" should be before "big" since it appears twice
 	if suggestions[1] != "biggest" {
 		t.Errorf("Spell check suggestions, Double char delete 2nd closest")
 	}
@@ -388,5 +390,34 @@ func TestAutocompleteFromQueries(t *testing.T) {
 func TestLoadOldModel(t *testing.T) {
 	if _, err := Load("data/test.dict"); err != nil {
 		t.Errorf("Couldn't load old model format: %v", err)
+	}
+}
+
+func TestEditsMulti(t *testing.T) {
+	model := NewModel()
+	got := model.EditsMulti("elephant", model.Depth)
+	want := []string{
+		"lephant", "eephant", "elphant", "elehant", "elepant", "elephnt", "elephat", "elephan", "elephant",
+		"ephant", "lphant", "lehant", "lepant", "lephnt", "lephat", "lephan", "lephant",
+		"ephant", "ephant", "eehant", "eepant", "eephnt", "eephat", "eephan", "eephant",
+		"lphant", "ephant", "elhant", "elpant", "elphnt", "elphat", "elphan", "elphant",
+		"lehant", "eehant", "elhant", "eleant", "elehnt", "elehat", "elehan", "elehant",
+		"lepant", "eepant", "elpant", "eleant", "elepnt", "elepat", "elepan", "elepant",
+		"lephnt", "eephnt", "elphnt", "elehnt", "elepnt", "elepht", "elephn", "elephnt",
+		"lephat", "eephat", "elphat", "elehat", "elepat", "elepht", "elepha", "elephat",
+		"lephan", "eephan", "elphan", "elehan", "elepan", "elephn", "elepha", "elephan",
+		"lephant", "eephant", "elphant", "elehant", "elepant", "elephnt", "elephat", "elephan", "elephant"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("EditsMulti didn't match:\nGot:  %v\nWant: %v", got, want)
+	}
+}
+
+var result []string // prevent the benchmark from getting optimized out
+
+func BenchmarkEditsMulti(b *testing.B) {
+	model := NewModel()
+	for i := 0; i < b.N; i++ {
+		result = model.EditsMulti("elephant", model.Depth)
 	}
 }
