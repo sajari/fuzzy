@@ -332,15 +332,18 @@ func (model *Model) TrainQuery(term string) {
 func (model *Model) createSuggestKeys(term string) {
 	edits := model.EditsMulti(term, model.Depth)
 	for _, edit := range edits {
+		if len(edit) <= 1 {
+			continue
+		}
 		skip := false
 		for _, hit := range model.Suggest[edit] {
 			if hit == term {
 				// Already know about this one
 				skip = true
-				continue
+				break
 			}
 		}
-		if !skip && len(edit) > 1 {
+		if !skip {
 			model.Suggest[edit] = append(model.Suggest[edit], term)
 		}
 	}
@@ -355,10 +358,7 @@ func (model *Model) EditsMulti(term string, depth int) []string {
 			break
 		}
 		for _, edit := range edits {
-			edits2 := Edits1(edit)
-			for _, edit2 := range edits2 {
-				edits = append(edits, edit2)
-			}
+			edits = append(edits, Edits1(edit)...)
 		}
 	}
 	return edits
@@ -366,23 +366,13 @@ func (model *Model) EditsMulti(term string, depth int) []string {
 
 // Edits1 creates a set of terms that are 1 char delete from the input term
 func Edits1(word string) []string {
-
-	splits := []Pair{}
-	for i := 0; i <= len(word); i++ {
-		splits = append(splits, Pair{word[:i], word[i:]})
+	total_set := make([]string, 0, len(word)+2)
+	for i := 0; i < len(word); i++ {
+		// delete ith character
+		total_set = append(total_set, word[:i]+word[i+1:])
 	}
 
-	total_set := []string{}
-	for _, elem := range splits {
-
-		//deletion
-		if len(elem.str2) > 0 {
-			total_set = append(total_set, elem.str1+elem.str2[1:])
-		} else {
-			total_set = append(total_set, elem.str1)
-		}
-
-	}
+	total_set = append(total_set, word)
 
 	// Special case ending in "ies" or "ys"
 	if strings.HasSuffix(word, "ies") {
