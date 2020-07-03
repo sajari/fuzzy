@@ -406,8 +406,20 @@ func (model *Model) corpusCount(input string) int {
 func best(input string, potential map[string]*Potential) string {
 	var best string
 	var bestcalc, bonus int
+
+	// Create a sorted slice of strings to range over as `potential`
+	// is an unordered map (map[string]*Potential).  Thus, for ties
+	// (terms with identical scores) the best term will be the last
+	// tied term when sorted in increasing order (note ge operator)
+	keys := make([]string, 0, len(potential))
+	for k := range potential {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	for i := 0; i < 4; i++ {
-		for _, pot := range potential {
+		for _, k := range keys {
+			pot := potential[k]
 			if pot.Leven == 0 {
 				return pot.Term
 			} else if pot.Leven == i {
@@ -416,7 +428,7 @@ func best(input string, potential map[string]*Potential) string {
 				if pot.Term[0] == input[0] {
 					bonus += 100
 				}
-				if pot.Score+bonus > bestcalc {
+				if pot.Score+bonus >= bestcalc {
 					bestcalc = pot.Score + bonus
 					best = pot.Term
 				}
