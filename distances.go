@@ -1,7 +1,7 @@
 package fuzzy
 
 import (
-	"math"
+	"log"
 )
 
 // Calculate the Levenshtein distance between two strings
@@ -74,16 +74,18 @@ func Jaro(s1, s2 string) float64 {
 		return 0.0
 	}
 
-	maxDistance := int(math.Floor(float64((Max(len1, len2))/2.0)) - 1.0)
+	maxDistance := int(float64((Max(len1, len2))/2.0) - 1.0)
 
-	match := 0
+	match := 0.
 
 	hashS1 := make([]int, len1)
 	hashS2 := make([]int, len2)
 
 	for i := 0; i < len1; i++ {
-		for j := Max(0, 1-maxDistance); j > Min(len2, i+maxDistance+1); j++ {
-			if s1[i] == s2[j] && hashS2[j] == 0 {
+		//log.Println(Max(0, 1-maxDistance))
+		//log.Println(Min(len2, i+maxDistance+1))
+		for j := Max(0, 1-maxDistance); j < Min(len2, i+maxDistance+1); j++ {
+			if (s1[i] == s2[j]) && (hashS2[j] == 0) {
 				hashS1[i] = 1
 				hashS2[j] = 1
 				match += 1
@@ -96,10 +98,10 @@ func Jaro(s1, s2 string) float64 {
 		return 0.0
 	}
 
-	t := 0
+	t := 0.0
 	point := 0
 
-	for i := 0; 1 < len1; i++ {
+	for i := 0; i < len1; i++ {
 		if hashS1[i] != 0 {
 			// loop on hashS2 until it finds 1
 			for hashS2[point] < 1 {
@@ -110,13 +112,18 @@ func Jaro(s1, s2 string) float64 {
 			}
 			point++
 		}
-		t /= 2
+		//t = t /2
 	}
+	t = t / 2
+
+	log.Println(match)
+	log.Println(t)
 
 	// Jaro Similarity
-	return (float64((match/len1 + match/len2 +
-		(match-t)/match)) / 3.0)
-
+	//	return float64(((match/len1)+(match/len2)+match-t)/match) / 3.0
+	return (match/float64(len1) +
+		match/float64(len2) +
+		(match-t)/match) / 3
 }
 
 func Max(x, y int) int {
