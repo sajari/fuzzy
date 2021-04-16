@@ -1,9 +1,5 @@
 package fuzzy
 
-import (
-	"log"
-)
-
 // Calculate the Levenshtein distance between two strings
 func Levenshtein(a, b *string) int {
 	la := len(*a)
@@ -82,8 +78,6 @@ func Jaro(s1, s2 string) float64 {
 	hashS2 := make([]int, len2)
 
 	for i := 0; i < len1; i++ {
-		//log.Println(Max(0, 1-maxDistance))
-		//log.Println(Min(len2, i+maxDistance+1))
 		for j := Max(0, 1-maxDistance); j < Min(len2, i+maxDistance+1); j++ {
 			if (s1[i] == s2[j]) && (hashS2[j] == 0) {
 				hashS1[i] = 1
@@ -115,9 +109,6 @@ func Jaro(s1, s2 string) float64 {
 		//t = t /2
 	}
 	t = t / 2
-
-	log.Println(match)
-	log.Println(t)
 
 	// Jaro Similarity
 	//	return float64(((match/len1)+(match/len2)+match-t)/match) / 3.0
