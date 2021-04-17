@@ -295,6 +295,27 @@ func (model *Model) TrainQuery(term string) {
 	}
 }
 
+// Train using a search query term. This builds a second popularity
+// index of terms used to search, as opposed to generally occurring
+// in corpus text. It also adds a user define count (query count) to advice on ranking.
+// see SetCount for inspiration.
+// If the term exists in the model, advances it by `count`, otherwise count will be the
+// starting point as opposed to `1` in the standard TrainQuery
+func (model *Model) TrainQueryWithUserCount(term string, count int) {
+	model.Lock()
+	if t, ok := model.Data[term]; ok {
+		t.Query = t.Query + count
+	} else {
+		model.Data[term] = &Counts{count, 1}
+	}
+	model.SuffDivergence++
+	update := model.SuffDivergence > model.SuffDivergenceThreshold
+	model.Unlock()
+	if update {
+		model.updateSuffixArr()
+	}
+}
+
 // For a given term, create the partially deleted lookup keys
 func (model *Model) createSuggestKeys(term string) {
 	edits := model.EditsMulti(term, model.Depth)
