@@ -36,10 +36,11 @@ const (
 )
 
 type Potential struct {
-	Term   string // Potential term string
-	Score  int    // Score
-	Leven  int    // Levenstein distance from the suggestion to the input
-	Method Method // How this potential was matched
+	Term        string  // Potential term string
+	Score       int     // Score
+	Leven       int     // Levenstein distance from the suggestion to the input
+	JaroWinkler float64 // JaroWinkler distance from the suggestion to the input
+	Method      Method  // How this potential was matched
 }
 
 type Counts struct {
@@ -233,40 +234,6 @@ func (model *Model) SetDivergenceThreshold(val int) {
 	model.Unlock()
 }
 
-// Calculate the Levenshtein distance between two strings
-func Levenshtein(a, b *string) int {
-	la := len(*a)
-	lb := len(*b)
-	d := make([]int, la+1)
-	var lastdiag, olddiag, temp int
-
-	for i := 1; i <= la; i++ {
-		d[i] = i
-	}
-	for i := 1; i <= lb; i++ {
-		d[0] = i
-		lastdiag = i - 1
-		for j := 1; j <= la; j++ {
-			olddiag = d[j]
-			min := d[j] + 1
-			if (d[j-1] + 1) < min {
-				min = d[j-1] + 1
-			}
-			if (*a)[j-1] == (*b)[i-1] {
-				temp = 0
-			} else {
-				temp = 1
-			}
-			if (lastdiag + temp) < min {
-				min = lastdiag + temp
-			}
-			d[j] = min
-			lastdiag = olddiag
-		}
-	}
-	return d[la]
-}
-
 // Add an array of words to train the model in bulk
 func (model *Model) Train(terms []string) {
 	for _, term := range terms {
@@ -319,6 +286,27 @@ func (model *Model) TrainQuery(term string) {
 		t.Query++
 	} else {
 		model.Data[term] = &Counts{0, 1}
+	}
+	model.SuffDivergence++
+	update := model.SuffDivergence > model.SuffDivergenceThreshold
+	model.Unlock()
+	if update {
+		model.updateSuffixArr()
+	}
+}
+
+// Train using a search query term. This builds a second popularity
+// index of terms used to search, as opposed to generally occurring
+// in corpus text. It also adds a user define count (query count) to advice on ranking.
+// see SetCount for inspiration.
+// If the term exists in the model, advances it by `count`, otherwise count will be the
+// starting point as opposed to `1` in the standard TrainQuery
+func (model *Model) TrainQueryWithUserCount(term string, count int) {
+	model.Lock()
+	if t, ok := model.Data[term]; ok {
+		t.Query = t.Query + count
+	} else {
+		model.Data[term] = &Counts{count, 1}
 	}
 	model.SuffDivergence++
 	update := model.SuffDivergence > model.SuffDivergenceThreshold
@@ -472,7 +460,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 
 	// 0 - If this is a dictionary term we're all good, no need to go further
 	if model.corpusCount(input) > model.Threshold {
-		suggestions[input] = &Potential{Term: input, Score: model.corpusCount(input), Leven: 0, Method: MethodIsWord}
+		suggestions[input] = &Potential{Term: input, Score: model.corpusCount(input), Leven: 0, JaroWinkler: 0.0, Method: MethodIsWord}
 		if !exhaustive {
 			return suggestions
 		}
@@ -482,7 +470,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	if sugg, ok := model.Suggest[input]; ok {
 		for _, pot := range sugg {
 			if _, ok := suggestions[pot]; !ok {
-				suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: Levenshtein(&input, &pot), Method: MethodSuggestMapsToInput}
+				suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: Levenshtein(&input, &pot), JaroWinkler: JaroWinkler(input, pot), Method: MethodSuggestMapsToInput}
 			}
 		}
 
@@ -498,7 +486,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 		score := model.corpusCount(edit)
 		if score > 0 && len(edit) > 2 {
 			if _, ok := suggestions[edit]; !ok {
-				suggestions[edit] = &Potential{Term: edit, Score: score, Leven: Levenshtein(&input, &edit), Method: MethodInputDeleteMapsToDict}
+				suggestions[edit] = &Potential{Term: edit, Score: score, Leven: Levenshtein(&input, &edit), JaroWinkler: JaroWinkler(input, edit), Method: MethodInputDeleteMapsToDict}
 			}
 			if score > max {
 				max = score
@@ -520,9 +508,10 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 			// Is this a real transpose or replace?
 			for _, pot := range sugg {
 				lev := Levenshtein(&input, &pot)
+				jw := JaroWinkler(input, pot)
 				if lev <= model.Depth+1 { // The +1 doesn't seem to impact speed, but has greater coverage when the depth is not sufficient to make suggestions
 					if _, ok := suggestions[pot]; !ok {
-						suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: lev, Method: MethodInputDeleteMapsToSuggest}
+						suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: lev, JaroWinkler: jw, Method: MethodInputDeleteMapsToSuggest}
 					}
 				}
 			}
